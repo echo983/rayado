@@ -56,6 +56,7 @@
 - EntityBuild：
   - 仅提升高频且上下文稳定的实体为全局实体。
   - 低置信实体不强行合并，允许并存。
+  - 基础实现：基于词面频次做 `GCL_ENTITY` / `GCL_MENTION`。
 - SpeakerDiarization：
   - 仅输出本集说话人簇与置信度；跨集关联通过 `GCL_SPEAKER_MAP` 追加。
   - 基础实现：从 ASR words 中读取 `speaker`，为每个 span 写 `GCL_SPEAKER_MAP`。

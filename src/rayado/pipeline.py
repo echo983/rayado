@@ -7,6 +7,7 @@ from . import __version__
 from .asr import transcribe_chunk
 from .cache import Cache
 from .chunking import chunk_has_speech, generate_chunks
+from .entity import extract_entities
 from .ffmpeg_tools import ffprobe_duration, silencedetect
 from .gcl import append_block, ensure_header
 from .models import Chunk, Span
@@ -203,6 +204,12 @@ def run_pipeline(
 
     suppressed_set = set(suppressed)
     spans_filtered = [span for span in spans if span.sid not in suppressed_set]
+
+    entities, mentions = extract_entities(spans_filtered)
+    for entity in entities:
+        append_block(gcl_path, "GCL_ENTITY", entity)
+    for mention in mentions:
+        append_block(gcl_path, "GCL_MENTION", mention)
 
     transcript = render_transcript(spans_filtered)
     srt = render_srt(spans_filtered)
