@@ -17,7 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Rayado CLI transcription pipeline")
     parser.add_argument("input", help="Path to local media file")
     parser.add_argument("--out", dest="out_dir", default=None, help="Output directory")
-    parser.add_argument("--concurrency", type=int, default=128, help="Concurrency (reserved)")
+    parser.add_argument("--concurrency", type=int, default=64, help="Concurrency (reserved)")
     parser.add_argument("--chunk-sec", type=float, default=25.0, help="Chunk length in seconds")
     parser.add_argument("--overlap-sec", type=float, default=1.5, help="Overlap on each side in seconds")
     parser.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")

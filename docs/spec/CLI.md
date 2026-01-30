@@ -7,7 +7,7 @@ rayado transcribe <input>
 
 ## 参数
 - `--out <dir>` 输出目录（默认 `./out/<basename>`）
-- `--concurrency <n>` 并发（默认 128）
+- `--concurrency <n>` 并发（默认 64）
 - `--chunk-sec <n>` 默认 25
 - `--overlap-sec <n>` 默认 1.5
 - `--retry <n>` 默认 1（硬上限 1）
