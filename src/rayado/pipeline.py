@@ -9,7 +9,7 @@ from .asr import transcribe_chunk
 from .cache import Cache
 from .chunking import chunk_has_speech, generate_chunks
 from .entity import extract_entities
-from .ffmpeg_tools import ffprobe_duration, silencedetect
+from .ffmpeg_tools import extract_audio_file, ffprobe_duration, silencedetect
 from .gcl import append_block, ensure_header
 from .models import Chunk, Span
 from .overlap import overlap_judge
@@ -105,8 +105,11 @@ def run_pipeline(
     ensure_dir(out_dir)
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
 
-    input_hash = hash_file(input_path)
-    duration = ffprobe_duration(input_path)
+    audio_path = os.path.join(out_dir, "audio.wav")
+    extract_audio_file(input_path, audio_path, sample_rate=16000, channels=1)
+
+    input_hash = hash_file(audio_path)
+    duration = ffprobe_duration(audio_path)
 
     if vad_name.lower() in {"none", "off", "disabled"}:
         speech_segments = build_speech_segments(
@@ -117,7 +120,7 @@ def run_pipeline(
             merge_gap_sec=0.0,
         )
     else:
-        silences = silencedetect(input_path, noise_db=vad_threshold, min_silence=0.5)
+        silences = silencedetect(audio_path, noise_db=vad_threshold, min_silence=0.5)
         speech_segments = build_speech_segments(
             duration,
             silences,
@@ -201,7 +204,7 @@ def run_pipeline(
             future = executor.submit(
                 _process_chunk,
                 chunk=chunk,
-                input_path=input_path,
+                input_path=audio_path,
                 input_hash=input_hash,
                 provider=provider,
                 params=params,
