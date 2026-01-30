@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 import os
-from typing import List
+from typing import Dict, List
 
 from . import __version__
 from .asr import transcribe_chunk
@@ -72,6 +72,8 @@ def run_pipeline(
     spans: List[Span] = []
     span_id = 1
     speakers_written: set[str] = set()
+    speaker_labels: Dict[str, str] = {}
+    speaker_by_sid: Dict[str, str] = {}
 
     for chunk in chunks:
         if not chunk_has_speech(chunk, speech_segments):
@@ -166,10 +168,16 @@ def run_pipeline(
             )
             if speaker_block:
                 spk_id = speaker_block.get("spk_id", "")
+                label = speaker_block.get("label", "")
                 if spk_id and spk_id not in speakers_written:
                     append_block(gcl_path, "GCL_SPEAKER", speaker_block)
                     speakers_written.add(spk_id)
-                append_block(gcl_path, "GCL_SPEAKER_MAP", speaker_map_block)
+                    if label:
+                        speaker_labels[spk_id] = label
+                if speaker_map_block:
+                    append_block(gcl_path, "GCL_SPEAKER_MAP", speaker_map_block)
+                    if label:
+                        speaker_by_sid[speaker_map_block.get("sid", "")] = label
 
         for span in chunk_spans:
             spans.append(span)
@@ -211,8 +219,8 @@ def run_pipeline(
     for mention in mentions:
         append_block(gcl_path, "GCL_MENTION", mention)
 
-    transcript = render_transcript(spans_filtered)
-    srt = render_srt(spans_filtered)
+    transcript = render_transcript(spans_filtered, speaker_by_sid=speaker_by_sid)
+    srt = render_srt(spans_filtered, speaker_by_sid=speaker_by_sid)
 
     with open(os.path.join(out_dir, "transcript.txt"), "w", encoding="utf-8") as f:
         f.write(transcript)
