@@ -196,7 +196,8 @@ def run_pipeline(
     vad_enabled = vad_name.lower() not in {"none", "off", "disabled"}
 
     current_step = step_start("chunk_process")
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
+    executor = ThreadPoolExecutor(max_workers=max(1, concurrency))
+    try:
         future_map = {}
         for idx, chunk in enumerate(chunks, start=1):
             future = executor.submit(
@@ -225,6 +226,10 @@ def run_pipeline(
             except Exception as exc:  # noqa: BLE001
                 errors.append(exc)
                 break
+    except KeyboardInterrupt as exc:
+        errors.append(exc)
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
     step_end(current_step)
 
     if errors:
@@ -248,6 +253,8 @@ def run_pipeline(
             stats,
             {"error": str(errors[0]), "steps": step_timings},
         )
+        if isinstance(errors[0], KeyboardInterrupt):
+            raise KeyboardInterrupt from errors[0]
         raise RuntimeError("Chunk failed") from errors[0]
 
     results.sort(key=lambda x: x[0].t0)
