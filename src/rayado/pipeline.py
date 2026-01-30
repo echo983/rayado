@@ -22,6 +22,10 @@ def run_pipeline(
     cache_dir: str,
     provider: str,
     retry: int,
+    deepgram_model: str,
+    deepgram_diarize: bool,
+    deepgram_smart_format: bool,
+    deepgram_punctuate: bool,
     chunk_sec: float,
     overlap_sec: float,
     vad_name: str,
@@ -101,10 +105,10 @@ def run_pipeline(
         if provider == "deepgram":
             params.update(
                 {
-                    "model": "nova-2",
-                    "diarize": True,
-                    "smart_format": False,
-                    "punctuate": True,
+                    "model": deepgram_model,
+                    "diarize": deepgram_diarize,
+                    "smart_format": deepgram_smart_format,
+                    "punctuate": deepgram_punctuate,
                 }
             )
 

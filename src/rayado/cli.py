@@ -14,6 +14,10 @@ def _default_out_dir(input_path: str) -> str:
 
 
 def main() -> None:
+    argv = sys.argv[1:]
+    if argv and argv[0] == "transcribe":
+        argv = argv[1:]
+
     parser = argparse.ArgumentParser(description="Rayado CLI transcription pipeline")
     parser.add_argument("input", help="Path to local media file")
     parser.add_argument("--out", dest="out_dir", default=None, help="Output directory")
@@ -22,6 +26,25 @@ def main() -> None:
     parser.add_argument("--overlap-sec", type=float, default=1.5, help="Overlap on each side in seconds")
     parser.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
     parser.add_argument("--asr-provider", default="deepgram", help="ASR provider (deepgram/mock/noop)")
+    parser.add_argument("--deepgram-model", default="nova-2", help="Deepgram model name")
+    parser.add_argument(
+        "--deepgram-diarize",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable Deepgram diarization",
+    )
+    parser.add_argument(
+        "--deepgram-smart-format",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable Deepgram smart formatting",
+    )
+    parser.add_argument(
+        "--deepgram-punctuate",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable Deepgram punctuation",
+    )
     parser.add_argument(
         "--cache-dir",
         default=os.path.join(".cache", "rayado"),
@@ -33,7 +56,7 @@ def main() -> None:
     parser.add_argument("--vad-merge-gap-sec", type=float, default=0.3, help="Merge gap length")
     parser.add_argument("--vad-pad-sec", type=float, default=0.1, help="Pad speech segments by seconds")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_path = args.input
     if not os.path.exists(input_path):
@@ -56,6 +79,10 @@ def main() -> None:
         cache_dir=args.cache_dir,
         provider=args.asr_provider,
         retry=args.retry,
+        deepgram_model=args.deepgram_model,
+        deepgram_diarize=args.deepgram_diarize,
+        deepgram_smart_format=args.deepgram_smart_format,
+        deepgram_punctuate=args.deepgram_punctuate,
         chunk_sec=args.chunk_sec,
         overlap_sec=args.overlap_sec,
         vad_name=args.vad,

@@ -1,4 +1,4 @@
-﻿[project]
+[project]
 name = "rayado"
 version = "0.1.0"
 description = "High-throughput append-only CLI transcription pipeline"

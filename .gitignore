@@ -1,0 +1,13 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Local artifacts
+.cache/
+out/
+
+# Local test assets
+/docs/testfiles/

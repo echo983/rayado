@@ -28,8 +28,8 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
 
 ## E2E Test
-- Test file: `docs/testfiles/test.webm`
-- Run: `python scripts/run_e2e.py`
+- Test file: `docs/testfiles/test.webm` (not tracked; add your own)
+- Run: `python scripts/run_e2e.py` (uses smaller chunk size and disables diarization)
 
 ## Status
 Milestone 1 in progress: end‑to‑end CLI + GCL + TXT/SRT output.
