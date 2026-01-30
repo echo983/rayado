@@ -56,6 +56,16 @@ policy suppress
 conf 0.80
 ```
 
+## 语言检测记录（Deepgram，示例）
+```
+GCL_OVERRIDE
+oid LANG_C00001
+sid S00001
+policy detected_language
+deps es
+conf 0.92
+```
+
 # GCL 增强字段（面向 LLM 消费）
 
 ## 实体
