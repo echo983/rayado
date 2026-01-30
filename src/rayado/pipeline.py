@@ -40,6 +40,8 @@ def _process_chunk(
     vad_pad_sec: float,
     tmp_dir: str,
 ) -> ResultItem:
+    low_conf_threshold = 0.5
+    low_conf_langs = ["zh", "ja", "ko", "en"]
     wav_path = os.path.join(tmp_dir, f"{chunk.chunk_id}.wav")
     extract_audio_file_segment(
         input_path,
@@ -84,6 +86,36 @@ def _process_chunk(
                 attempts += 1
                 if attempts > retry:
                     raise
+
+        if provider == "deepgram" and meta:
+            lang_conf = meta.get("language_confidence")
+            if isinstance(lang_conf, (int, float)) and lang_conf < low_conf_threshold:
+                rerun_params = dict(params)
+                rerun_params["detect_language"] = True
+                rerun_params["detect_language_set"] = low_conf_langs
+                rerun_params["language"] = ""
+                try:
+                    spans_retry, meta_retry = transcribe_chunk(
+                        input_path=wav_path,
+                        input_hash=input_hash,
+                        chunk=chunk,
+                        provider=provider,
+                        params=rerun_params,
+                        cache=cache,
+                        span_start_id=span_start_id,
+                        audio_bytes=audio_bytes,
+                    )
+                    retry_conf = meta_retry.get("language_confidence") if meta_retry else None
+                    prefer_retry = False
+                    if spans_retry and not spans:
+                        prefer_retry = True
+                    elif spans_retry and spans:
+                        if isinstance(retry_conf, (int, float)) and retry_conf >= lang_conf:
+                            prefer_retry = True
+                    if prefer_retry:
+                        spans, meta = spans_retry, meta_retry
+                except Exception:
+                    pass
 
         gcl_overrides: List[Dict[str, str]] = []
         speaker_block: Dict[str, str] = {}
