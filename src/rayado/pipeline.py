@@ -24,6 +24,31 @@ from .vad import build_speech_segments
 ResultItem = Tuple[Chunk, Optional[str], List[Span], Dict[str, str], Dict[str, str], List[Dict[str, str]]]
 
 
+def _infer_language_from_text(text: str) -> str:
+    if not text:
+        return ""
+    han = 0
+    hiragana = 0
+    katakana = 0
+    hangul = 0
+    for ch in text:
+        code = ord(ch)
+        if 0x4E00 <= code <= 0x9FFF:
+            han += 1
+        elif 0x3040 <= code <= 0x309F:
+            hiragana += 1
+        elif 0x30A0 <= code <= 0x30FF:
+            katakana += 1
+        elif 0xAC00 <= code <= 0xD7A3:
+            hangul += 1
+    if hangul > 0:
+        return "ko"
+    if hiragana + katakana > 0:
+        return "ja"
+    if han > 0:
+        return "zh"
+    return ""
+
 def _process_chunk(
     *,
     chunk: Chunk,
@@ -263,8 +288,47 @@ def run_pipeline(
     current_step = step_start("chunk_process")
     executor = ThreadPoolExecutor(max_workers=max(1, concurrency))
     try:
+        # Probe first chunk to infer dominant language without extra passes.
+        if provider == "deepgram" and deepgram_detect_language and chunks:
+            probe_chunk = chunks[0]
+            try:
+                probe_item = _process_chunk(
+                    chunk=probe_chunk,
+                    input_path=input_path,
+                    provider=provider,
+                    params=params,
+                    cache=cache,
+                    span_start_id=1,
+                    retry=retry,
+                    vad_enabled=vad_enabled,
+                    vad_threshold=vad_threshold,
+                    vad_min_speech_sec=vad_min_speech_sec,
+                    vad_merge_gap_sec=vad_merge_gap_sec,
+                    vad_pad_sec=vad_pad_sec,
+                    tmp_dir=tmp_dir,
+                )
+                results.append(probe_item)
+                _, skip_reason, probe_spans, _, _, _ = probe_item
+                if skip_reason:
+                    progress_chunk_skipped += 1
+                else:
+                    progress_chunk_processed += 1
+                    progress_span_count += len(probe_spans)
+                    if probe_spans:
+                        lang_hint = _infer_language_from_text(probe_spans[0].text_raw)
+                        if lang_hint:
+                            params = dict(params)
+                            params["detect_language"] = False
+                            params["detect_language_set"] = []
+                            params["language"] = lang_hint
+                write_snapshot("running")
+                chunks = chunks[1:]
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+
         future_map = {}
-        for idx, chunk in enumerate(chunks, start=1):
+        start_idx = 2 if results else 1
+        for idx, chunk in enumerate(chunks, start=start_idx):
             future = executor.submit(
                 _process_chunk,
                 chunk=chunk,
