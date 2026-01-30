@@ -1,7 +1,8 @@
 ﻿from __future__ import annotations
 
 import os
-from typing import Dict, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Tuple
 
 from . import __version__
 from .asr import transcribe_chunk
@@ -18,6 +19,64 @@ from .utils import ensure_dir, hash_file
 from .vad import build_speech_segments
 
 
+def _process_chunk(
+    *,
+    chunk: Chunk,
+    input_path: str,
+    input_hash: str,
+    provider: str,
+    params: dict,
+    cache: Cache,
+    span_start_id: int,
+    retry: int,
+) -> Tuple[Chunk, List[Span], Dict[str, str], Dict[str, str], Dict[str, str]]:
+    attempts = 0
+    while True:
+        try:
+            spans, meta = transcribe_chunk(
+                input_path=input_path,
+                input_hash=input_hash,
+                chunk=chunk,
+                provider=provider,
+                params=params,
+                cache=cache,
+                span_start_id=span_start_id,
+            )
+            break
+        except Exception:
+            attempts += 1
+            if attempts > retry:
+                raise
+
+    gcl_overrides: List[Dict[str, str]] = []
+    speaker_block: Dict[str, str] = {}
+    speaker_map_block: Dict[str, str] = {}
+
+    if provider == "deepgram" and meta and spans:
+        detected_lang = meta.get("detected_language") or ""
+        lang_conf = meta.get("language_confidence")
+        if detected_lang:
+            gcl_overrides.append(
+                {
+                    "oid": f"LANG_{chunk.chunk_id}",
+                    "sid": spans[0].sid,
+                    "policy": "detected_language",
+                    "norm_zh": "",
+                    "conf": f"{lang_conf}" if lang_conf is not None else "",
+                    "deps": detected_lang,
+                }
+            )
+
+        words = meta.get("words") or []
+        speaker_block, speaker_map_block = build_speaker_blocks(
+            chunk_id=chunk.chunk_id,
+            span_id=spans[0].sid,
+            words=words,
+        )
+
+    return chunk, spans, speaker_block, speaker_map_block, gcl_overrides
+
+
 def run_pipeline(
     *,
     input_path: str,
@@ -25,6 +84,7 @@ def run_pipeline(
     cache_dir: str,
     provider: str,
     retry: int,
+    concurrency: int,
     deepgram_model: str,
     deepgram_language: str,
     deepgram_detect_language: bool,
@@ -72,9 +132,25 @@ def run_pipeline(
     spans: List[Span] = []
     span_id = 1
     speakers_written: set[str] = set()
-    speaker_labels: Dict[str, str] = {}
     speaker_by_sid: Dict[str, str] = {}
 
+    params = {"version": __version__}
+    if provider == "deepgram":
+        params.update(
+            {
+                "model": deepgram_model,
+                "language": deepgram_language,
+                "detect_language": deepgram_detect_language,
+                "detect_language_set": deepgram_detect_language_set,
+                "diarize": deepgram_diarize,
+                "smart_format": deepgram_smart_format,
+                "punctuate": deepgram_punctuate,
+            }
+        )
+
+    # Write chunks and submit jobs
+    futures = []
+    chunk_jobs: List[Tuple[Chunk, int]] = []
     for chunk in chunks:
         if not chunk_has_speech(chunk, speech_segments):
             skip_chunk = Chunk(
@@ -110,78 +186,59 @@ def run_pipeline(
                 "overlap_right": f"{chunk.overlap_right}",
             },
         )
+        chunk_jobs.append((chunk, span_id))
+        span_id += 1
 
-        params = {"version": __version__}
-        if provider == "deepgram":
-            params.update(
-                {
-                    "model": deepgram_model,
-                    "language": deepgram_language,
-                    "detect_language": deepgram_detect_language,
-                    "detect_language_set": deepgram_detect_language_set,
-                    "diarize": deepgram_diarize,
-                    "smart_format": deepgram_smart_format,
-                    "punctuate": deepgram_punctuate,
-                }
+    errors: List[Tuple[Chunk, Exception]] = []
+    future_map = {}
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
+        for chunk, sid_start in chunk_jobs:
+            future = executor.submit(
+                _process_chunk,
+                chunk=chunk,
+                input_path=input_path,
+                input_hash=input_hash,
+                provider=provider,
+                params=params,
+                cache=cache,
+                span_start_id=sid_start,
+                retry=retry,
             )
+            future_map[future] = chunk
 
-        attempts = 0
-        while True:
+        results = []
+        for future in as_completed(future_map):
             try:
-                chunk_spans, chunk_meta = transcribe_chunk(
-                    input_path=input_path,
-                    input_hash=input_hash,
-                    chunk=chunk,
-                    provider=provider,
-                    params=params,
-                    cache=cache,
-                    span_start_id=span_id,
-                )
+                results.append(future.result())
+            except Exception as exc:  # noqa: BLE001
+                errors.append((future_map[future], exc))
                 break
-            except Exception:
-                attempts += 1
-                if attempts > retry:
-                    raise
 
-        if provider == "deepgram" and chunk_meta and chunk_spans:
-            detected_lang = chunk_meta.get("detected_language") or ""
-            lang_conf = chunk_meta.get("language_confidence")
-            if detected_lang:
-                append_block(
-                    gcl_path,
-                    "GCL_OVERRIDE",
-                    {
-                        "oid": f"LANG_{chunk.chunk_id}",
-                        "sid": chunk_spans[0].sid,
-                        "policy": "detected_language",
-                        "norm_zh": "",
-                        "conf": f"{lang_conf}" if lang_conf is not None else "",
-                        "deps": detected_lang,
-                    },
-                )
+    if errors:
+        for future in future_map:
+            future.cancel()
+        chunk, exc = errors[0]
+        raise RuntimeError(f"Chunk failed: {chunk.chunk_id}") from exc
 
-            words = chunk_meta.get("words") or []
-            speaker_block, speaker_map_block = build_speaker_blocks(
-                chunk_id=chunk.chunk_id,
-                span_id=chunk_spans[0].sid,
-                words=words,
-            )
-            if speaker_block:
-                spk_id = speaker_block.get("spk_id", "")
-                label = speaker_block.get("label", "")
-                if spk_id and spk_id not in speakers_written:
-                    append_block(gcl_path, "GCL_SPEAKER", speaker_block)
-                    speakers_written.add(spk_id)
-                    if label:
-                        speaker_labels[spk_id] = label
-                if speaker_map_block:
-                    append_block(gcl_path, "GCL_SPEAKER_MAP", speaker_map_block)
-                    if label:
-                        speaker_by_sid[speaker_map_block.get("sid", "")] = label
+    # Write results in chunk order for determinism
+    results.sort(key=lambda x: x[0].t0)
+    for chunk, chunk_spans, speaker_block, speaker_map_block, gcl_overrides in results:
+        for override in gcl_overrides:
+            append_block(gcl_path, "GCL_OVERRIDE", override)
+
+        if speaker_block:
+            spk_id = speaker_block.get("spk_id", "")
+            label = speaker_block.get("label", "")
+            if spk_id and spk_id not in speakers_written:
+                append_block(gcl_path, "GCL_SPEAKER", speaker_block)
+                speakers_written.add(spk_id)
+            if speaker_map_block:
+                append_block(gcl_path, "GCL_SPEAKER_MAP", speaker_map_block)
+                if label:
+                    speaker_by_sid[speaker_map_block.get("sid", "")] = label
 
         for span in chunk_spans:
             spans.append(span)
-            span_id += 1
             append_block(
                 gcl_path,
                 "GCL_SPAN",
