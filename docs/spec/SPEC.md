@@ -81,6 +81,13 @@
 - `GCL_OVERLAP`：裁决信息（可选）。
 - `GCL_OVERRIDE`：用于抑制/合并（可选）。
 
+### 语言检测记录（Deepgram）
+- 当启用 `detect_language` 时，追加一条 `GCL_OVERRIDE` 记录，用于标记该 chunk 的检测语言：
+  - `policy=detected_language`
+  - `deps=<language_code>`（如 `es`）
+  - `conf=<language_confidence>`（可空）
+  - `sid` 取该 chunk 的首个 `GCL_SPAN.sid`
+
 ## GCL 增强字段（LLM 友好）
 - `GCL_ENTITY`：全局实体条目（自动抽取、可撤销）。
 - `GCL_MENTION`：实体与 span 关联。
