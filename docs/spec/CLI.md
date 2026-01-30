@@ -8,7 +8,7 @@ rayado transcribe <input>
 ## 参数
 - `--out <dir>` 输出目录（默认 `./out/<basename>`）
 - `--concurrency <n>` 并发（默认 64）
-- `--chunk-sec <n>` 默认 25
+- `--chunk-sec <n>` 默认 120
 - `--overlap-sec <n>` 默认 1.5
 - `--retry <n>` 默认 1（硬上限 1）
 - `--asr-provider <name>` 服务商标识
@@ -17,7 +17,7 @@ rayado transcribe <input>
 - `--deepgram-detect-language/--no-deepgram-detect-language` 是否启用语言检测（默认开）
 - `--deepgram-detect-language-set <code>` 限制可检测语言（可重复）
 - `--deepgram-language <code>` 语言提示（仅作为兜底）
-- `--deepgram-diarize/--no-deepgram-diarize` 是否启用说话人分离
+- `--deepgram-diarize/--no-deepgram-diarize` 是否启用说话人分离（默认关）
 - `--deepgram-smart-format/--no-deepgram-smart-format` 是否启用 Smart Format
 - `--deepgram-punctuate/--no-deepgram-punctuate` 是否启用标点
 - `--vad <name>` VAD 实现标识（默认启用）

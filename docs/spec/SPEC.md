@@ -21,7 +21,7 @@
 ## 总体流程
 1) AudioPrep：用 `ffmpeg` 提取音轨（建议 16kHz mono wav/flac）。
 2) VAD 预扫：低成本检测有人声区间，生成 speech mask（不走 ASR，不产生成本）。
-3) ChunkPlan：按固定时间切片（默认 25s，左右各 1.5s overlap，步长 22s），仅在 speech mask 覆盖区域内生成 chunk。
+3) ChunkPlan：按固定时间切片（默认 120s，左右各 1.5s overlap，步长 117s），仅在 speech mask 覆盖区域内生成 chunk。
 4) ASRPool：按并发上限发送请求；每个 chunk 只允许重试一次。
 5) GCLWriter：统一追加写入 GCL（append-only）。
 6) CoherenceJobs（同语种增强，自动可撤销）：
@@ -57,9 +57,10 @@
   - 仅提升高频且上下文稳定的实体为全局实体。
   - 低置信实体不强行合并，允许并存。
   - 基础实现：基于词面频次做 `GCL_ENTITY` / `GCL_MENTION`。
-- SpeakerDiarization：
+ - SpeakerDiarization：
   - 仅输出本集说话人簇与置信度；跨集关联通过 `GCL_SPEAKER_MAP` 追加。
   - 基础实现：从 ASR words 中读取 `speaker`，为每个 span 写 `GCL_SPEAKER_MAP`。
+  - 默认关闭，避免碎片化 speaker id；需要时手动开启。
 - SceneJobs：
   - 以时间窗或转场特征做粗粒度场景划分；不追求精细。
 

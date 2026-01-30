@@ -21,8 +21,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Rayado CLI transcription pipeline")
     parser.add_argument("input", help="Path to local media file")
     parser.add_argument("--out", dest="out_dir", default=None, help="Output directory")
-    parser.add_argument("--concurrency", type=int, default=64, help="Concurrency (reserved)")
-    parser.add_argument("--chunk-sec", type=float, default=25.0, help="Chunk length in seconds")
+    parser.add_argument("--concurrency", type=int, default=64, help="Concurrency")
+    parser.add_argument("--chunk-sec", type=float, default=120.0, help="Chunk length in seconds")
     parser.add_argument("--overlap-sec", type=float, default=1.5, help="Overlap on each side in seconds")
     parser.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
     parser.add_argument("--asr-provider", default="deepgram", help="ASR provider (deepgram/mock/noop)")
@@ -43,7 +43,7 @@ def main() -> None:
     parser.add_argument(
         "--deepgram-diarize",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=False,
         help="Enable Deepgram diarization",
     )
     parser.add_argument(
@@ -83,8 +83,9 @@ def main() -> None:
     out_dir = args.out_dir or _default_out_dir(input_path)
     ensure_dir(out_dir)
 
-    if args.concurrency != 128:
-        print("Note: concurrency is reserved in MVP; execution is sequential.", file=sys.stderr)
+    if args.concurrency < 1:
+        print("Concurrency must be >= 1", file=sys.stderr)
+        sys.exit(1)
 
     run_pipeline(
         input_path=input_path,
@@ -92,6 +93,7 @@ def main() -> None:
         cache_dir=args.cache_dir,
         provider=args.asr_provider,
         retry=args.retry,
+        concurrency=args.concurrency,
         deepgram_model=args.deepgram_model,
         deepgram_detect_language=args.deepgram_detect_language,
         deepgram_detect_language_set=args.deepgram_detect_language_set,
