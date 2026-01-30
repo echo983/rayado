@@ -124,11 +124,21 @@ def transcribe_chunk(
 
         channel = (payload.get("results", {}).get("channels") or [{}])[0]
         alt = (channel.get("alternatives") or [{}])[0]
-        transcript = (alt.get("transcript" ) or "").strip()
+        transcript = (alt.get("transcript") or "").strip()
         words = alt.get("words") or []
         confidence = float(alt.get("confidence") or 0.0)
         detected_language = channel.get("detected_language")
         language_confidence = channel.get("language_confidence")
+
+        if not transcript and words:
+            lang = (detected_language or "").lower()
+            separator = "" if lang.startswith(("zh", "ja", "ko")) else " "
+            tokens = []
+            for word in words:
+                token = (word.get("punctuated_word") or word.get("word") or "").strip()
+                if token:
+                    tokens.append(token)
+            transcript = separator.join(tokens).strip()
 
         if transcript and words:
             start_time = chunk.t0 + float(words[0].get("start", 0.0))
