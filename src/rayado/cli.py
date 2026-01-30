@@ -27,7 +27,19 @@ def main() -> None:
     parser.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
     parser.add_argument("--asr-provider", default="deepgram", help="ASR provider (deepgram/mock/noop)")
     parser.add_argument("--deepgram-model", default="nova-2", help="Deepgram model name")
-    parser.add_argument("--deepgram-language", default="", help="Deepgram language hint (e.g. es)")
+    parser.add_argument(
+        "--deepgram-detect-language",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable Deepgram language detection (pre-recorded)",
+    )
+    parser.add_argument(
+        "--deepgram-detect-language-set",
+        action="append",
+        default=[],
+        help="Restrict detection languages (repeatable, e.g. --deepgram-detect-language-set es)",
+    )
+    parser.add_argument("--deepgram-language", default="", help="Deepgram language hint (fallback only)")
     parser.add_argument(
         "--deepgram-diarize",
         action=argparse.BooleanOptionalAction,
@@ -81,6 +93,8 @@ def main() -> None:
         provider=args.asr_provider,
         retry=args.retry,
         deepgram_model=args.deepgram_model,
+        deepgram_detect_language=args.deepgram_detect_language,
+        deepgram_detect_language_set=args.deepgram_detect_language_set,
         deepgram_language=args.deepgram_language,
         deepgram_diarize=args.deepgram_diarize,
         deepgram_smart_format=args.deepgram_smart_format,

@@ -34,7 +34,7 @@ def main() -> int:
         "--overlap-sec",
         "0.5",
         "--no-deepgram-diarize",
-        "--deepgram-language",
+        "--deepgram-detect-language-set",
         "es",
     ]
     proc = subprocess.run(cmd, cwd=str(ROOT))

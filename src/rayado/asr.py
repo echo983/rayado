@@ -25,7 +25,7 @@ def transcribe_chunk(
     params: dict,
     cache: Optional[Cache],
     span_start_id: int,
-) -> List[Span]:
+) -> tuple[List[Span], Optional[dict]]:
     request_body = {
         "provider": provider,
         "chunk_id": chunk.chunk_id,
@@ -39,7 +39,8 @@ def transcribe_chunk(
     if cache:
         cached = cache.get(cache_key, request_hash)
         if cached is not None:
-            return [
+            cached_meta = cached.get("meta") if isinstance(cached, dict) else None
+            spans_cached = [
                 Span(
                     sid=item["sid"],
                     t0=item["t0"],
@@ -50,8 +51,10 @@ def transcribe_chunk(
                 )
                 for item in cached.get("spans", [])
             ]
+            return spans_cached, cached_meta
 
     spans: List[Span] = []
+    payload: dict = {}
     if provider == "mock":
         sid = f"S{span_start_id:05d}"
         spans.append(
@@ -73,6 +76,8 @@ def transcribe_chunk(
 
         model = params.get("model", "nova-2")
         language = params.get("language", "")
+        detect_language = bool(params.get("detect_language", False))
+        detect_language_set = params.get("detect_language_set") or []
         diarize = params.get("diarize", True)
         smart_format = params.get("smart_format", False)
         punctuate = params.get("punctuate", True)
@@ -90,8 +95,15 @@ def transcribe_chunk(
             f"&smart_format={'true' if smart_format else 'false'}"
             f"&punctuate={'true' if punctuate else 'false'}"
         )
-        if language:
+        if detect_language:
+            if detect_language_set:
+                for lang in detect_language_set:
+                    query += f"&detect_language={lang}"
+            else:
+                query += "&detect_language=true"
+        elif language:
             query += f"&language={language}"
+
         url = f"https://api.deepgram.com/v1/listen?{query}"
         req = urllib.request.Request(
             url=url,
@@ -113,6 +125,8 @@ def transcribe_chunk(
         transcript = (alt.get("transcript") or "").strip()
         words = alt.get("words") or []
         confidence = float(alt.get("confidence") or 0.0)
+        detected_language = channel.get("detected_language")
+        language_confidence = channel.get("language_confidence")
 
         if transcript and words:
             start_time = chunk.t0 + float(words[0].get("start", 0.0))
@@ -133,8 +147,18 @@ def transcribe_chunk(
                     asr_conf=confidence,
                 )
             )
+
+        payload["_rayado_detected_language"] = detected_language
+        payload["_rayado_language_confidence"] = language_confidence
     else:
         raise ValueError(f"Unsupported provider: {provider}")
+
+    meta = {}
+    if provider == "deepgram":
+        meta = {
+            "detected_language": payload.get("_rayado_detected_language"),
+            "language_confidence": payload.get("_rayado_language_confidence"),
+        }
 
     if cache is not None:
         cache.set(
@@ -151,8 +175,9 @@ def transcribe_chunk(
                         "asr_conf": span.asr_conf,
                     }
                     for span in spans
-                ]
+                ],
+                "meta": meta,
             },
         )
 
-    return spans
+    return spans, meta

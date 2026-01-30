@@ -24,6 +24,8 @@ def run_pipeline(
     retry: int,
     deepgram_model: str,
     deepgram_language: str,
+    deepgram_detect_language: bool,
+    deepgram_detect_language_set: list[str],
     deepgram_diarize: bool,
     deepgram_smart_format: bool,
     deepgram_punctuate: bool,
@@ -108,6 +110,8 @@ def run_pipeline(
                 {
                     "model": deepgram_model,
                     "language": deepgram_language,
+                    "detect_language": deepgram_detect_language,
+                    "detect_language_set": deepgram_detect_language_set,
                     "diarize": deepgram_diarize,
                     "smart_format": deepgram_smart_format,
                     "punctuate": deepgram_punctuate,
@@ -117,7 +121,7 @@ def run_pipeline(
         attempts = 0
         while True:
             try:
-                chunk_spans = transcribe_chunk(
+                chunk_spans, chunk_meta = transcribe_chunk(
                     input_path=input_path,
                     input_hash=input_hash,
                     chunk=chunk,
@@ -131,6 +135,24 @@ def run_pipeline(
                 attempts += 1
                 if attempts > retry:
                     raise
+
+        if provider == "deepgram" and chunk_meta and chunk_spans:
+            detected_lang = chunk_meta.get("detected_language") or ""
+            lang_conf = chunk_meta.get("language_confidence")
+            if detected_lang:
+                append_block(
+                    gcl_path,
+                    "GCL_OVERRIDE",
+                    {
+                        "oid": f"LANG_{chunk.chunk_id}",
+                        "sid": chunk_spans[0].sid,
+                        "policy": "detected_language",
+                        "norm_zh": "",
+                        "conf": f"{lang_conf}" if lang_conf is not None else "",
+                        "deps": detected_lang,
+                    },
+                )
+
         for span in chunk_spans:
             spans.append(span)
             span_id += 1

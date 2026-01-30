@@ -20,7 +20,7 @@ def main() -> int:
         print(f"Missing test file: {TEST_FILE}", file=sys.stderr)
         return 3
 
-    base_url = "https://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&language=es"
+    url = "https://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&detect_language=es"
     out_dir = ROOT / "out" / "test"
     out_dir.mkdir(parents=True, exist_ok=True)
     wav_path = out_dir / "debug_segment.wav"
@@ -70,7 +70,7 @@ def main() -> int:
             "Content-Type: audio/wav",
             "--data-binary",
             f"@{wav_path}",
-            base_url,
+            url,
         ]
         result = subprocess.run(curl_cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -86,7 +86,8 @@ def main() -> int:
         alt = (payload.get("results", {}).get("channels") or [{}])[0].get("alternatives") or [{}]
         transcript = alt[0].get("transcript", "") if alt else ""
         if transcript:
-            print(f"[{start:.1f}-{end:.1f}s] {transcript}")
+            output = f"[{start:.1f}-{end:.1f}s] {transcript}\n"
+            sys.stdout.buffer.write(output.encode("utf-8", errors="replace"))
             return 0
 
     print("No transcript returned in 0-20s window.")
