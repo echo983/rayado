@@ -1,15 +1,17 @@
 ﻿from __future__ import annotations
 
 import os
+import shutil
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from . import __version__
 from .asr import transcribe_chunk
 from .cache import Cache
-from .chunking import chunk_has_speech, generate_chunks
+from .chunking import generate_chunks
 from .entity import extract_entities
-from .ffmpeg_tools import extract_audio_file, ffprobe_duration, silencedetect
+from .ffmpeg_tools import extract_audio_file_segment, ffprobe_duration, silencedetect
 from .gcl import append_block, ensure_header
 from .models import Chunk, Span
 from .overlap import overlap_judge
@@ -19,63 +21,97 @@ from .stats import RunStats, now, write_run_log
 from .utils import ensure_dir, hash_file
 from .vad import build_speech_segments
 
+ResultItem = Tuple[Chunk, Optional[str], List[Span], Dict[str, str], Dict[str, str], List[Dict[str, str]]]
+
 
 def _process_chunk(
     *,
     chunk: Chunk,
     input_path: str,
-    input_hash: str,
     provider: str,
     params: dict,
     cache: Cache,
     span_start_id: int,
     retry: int,
-) -> Tuple[Chunk, List[Span], Dict[str, str], Dict[str, str], Dict[str, str]]:
-    attempts = 0
-    while True:
-        try:
-            spans, meta = transcribe_chunk(
-                input_path=input_path,
-                input_hash=input_hash,
-                chunk=chunk,
-                provider=provider,
-                params=params,
-                cache=cache,
-                span_start_id=span_start_id,
+    vad_enabled: bool,
+    vad_threshold: float,
+    vad_min_speech_sec: float,
+    vad_merge_gap_sec: float,
+    vad_pad_sec: float,
+    tmp_dir: str,
+) -> ResultItem:
+    wav_path = os.path.join(tmp_dir, f"{chunk.chunk_id}.wav")
+    extract_audio_file_segment(
+        input_path,
+        wav_path,
+        start=chunk.t0,
+        end=chunk.t1,
+        sample_rate=16000,
+        channels=1,
+    )
+
+    try:
+        if vad_enabled:
+            silences = silencedetect(wav_path, noise_db=vad_threshold, min_silence=0.5)
+            speech_segments = build_speech_segments(
+                chunk.t1 - chunk.t0,
+                silences,
+                pad_sec=vad_pad_sec,
+                min_speech_sec=vad_min_speech_sec,
+                merge_gap_sec=vad_merge_gap_sec,
             )
-            break
-        except Exception:
-            attempts += 1
-            if attempts > retry:
-                raise
+            if not speech_segments:
+                return (chunk, "non_speech", [], {}, {}, [])
 
-    gcl_overrides: List[Dict[str, str]] = []
-    speaker_block: Dict[str, str] = {}
-    speaker_map_block: Dict[str, str] = {}
+        input_hash = hash_file(wav_path)
+        attempts = 0
+        while True:
+            try:
+                spans, meta = transcribe_chunk(
+                    input_path=wav_path,
+                    input_hash=input_hash,
+                    chunk=chunk,
+                    provider=provider,
+                    params=params,
+                    cache=cache,
+                    span_start_id=span_start_id,
+                )
+                break
+            except Exception:
+                attempts += 1
+                if attempts > retry:
+                    raise
 
-    if provider == "deepgram" and meta and spans:
-        detected_lang = meta.get("detected_language") or ""
-        lang_conf = meta.get("language_confidence")
-        if detected_lang:
-            gcl_overrides.append(
-                {
-                    "oid": f"LANG_{chunk.chunk_id}",
-                    "sid": spans[0].sid,
-                    "policy": "detected_language",
-                    "norm_zh": "",
-                    "conf": f"{lang_conf}" if lang_conf is not None else "",
-                    "deps": detected_lang,
-                }
+        gcl_overrides: List[Dict[str, str]] = []
+        speaker_block: Dict[str, str] = {}
+        speaker_map_block: Dict[str, str] = {}
+
+        if provider == "deepgram" and meta and spans:
+            detected_lang = meta.get("detected_language") or ""
+            lang_conf = meta.get("language_confidence")
+            if detected_lang:
+                gcl_overrides.append(
+                    {
+                        "oid": f"LANG_{chunk.chunk_id}",
+                        "sid": spans[0].sid,
+                        "policy": "detected_language",
+                        "norm_zh": "",
+                        "conf": f"{lang_conf}" if lang_conf is not None else "",
+                        "deps": detected_lang,
+                    }
+                )
+
+            words = meta.get("words") or []
+            speaker_block, speaker_map_block = build_speaker_blocks(
+                chunk_id=chunk.chunk_id,
+                span_id=spans[0].sid,
+                words=words,
             )
 
-        words = meta.get("words") or []
-        speaker_block, speaker_map_block = build_speaker_blocks(
-            chunk_id=chunk.chunk_id,
-            span_id=spans[0].sid,
-            words=words,
-        )
-
-    return chunk, spans, speaker_block, speaker_map_block, gcl_overrides
+        return (chunk, None, spans, speaker_block, speaker_map_block, gcl_overrides)
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
 
 def run_pipeline(
@@ -105,37 +141,12 @@ def run_pipeline(
     ensure_dir(out_dir)
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
 
-    audio_path = os.path.join(out_dir, "audio.wav")
-    extract_audio_file(input_path, audio_path, sample_rate=16000, channels=1)
-
-    input_hash = hash_file(audio_path)
-    duration = ffprobe_duration(audio_path)
-
-    if vad_name.lower() in {"none", "off", "disabled"}:
-        speech_segments = build_speech_segments(
-            duration,
-            [],
-            pad_sec=0.0,
-            min_speech_sec=0.0,
-            merge_gap_sec=0.0,
-        )
-    else:
-        silences = silencedetect(audio_path, noise_db=vad_threshold, min_silence=0.5)
-        speech_segments = build_speech_segments(
-            duration,
-            silences,
-            pad_sec=vad_pad_sec,
-            min_speech_sec=vad_min_speech_sec,
-            merge_gap_sec=vad_merge_gap_sec,
-        )
-
-    chunks = generate_chunks(duration, chunk_sec=chunk_sec, overlap_sec=overlap_sec)
+    duration = ffprobe_duration(input_path)
 
     gcl_path = os.path.join(out_dir, "episode.gcl")
     ensure_header(gcl_path)
 
     spans: List[Span] = []
-    span_id = 1
     speakers_written: set[str] = set()
     speaker_by_sid: Dict[str, str] = {}
 
@@ -153,31 +164,83 @@ def run_pipeline(
             }
         )
 
+    chunks = generate_chunks(duration, chunk_sec=chunk_sec, overlap_sec=overlap_sec)
+
+    tmp_dir = os.path.join(out_dir, "_audio_chunks")
+    ensure_dir(tmp_dir)
+
+    results: List[ResultItem] = []
+    results_lock = threading.Lock()
+    errors: List[Exception] = []
+
+    vad_enabled = vad_name.lower() not in {"none", "off", "disabled"}
+
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
+        future_map = {}
+        for idx, chunk in enumerate(chunks, start=1):
+            future = executor.submit(
+                _process_chunk,
+                chunk=chunk,
+                input_path=input_path,
+                provider=provider,
+                params=params,
+                cache=cache,
+                span_start_id=idx,
+                retry=retry,
+                vad_enabled=vad_enabled,
+                vad_threshold=vad_threshold,
+                vad_min_speech_sec=vad_min_speech_sec,
+                vad_merge_gap_sec=vad_merge_gap_sec,
+                vad_pad_sec=vad_pad_sec,
+                tmp_dir=tmp_dir,
+            )
+            future_map[future] = chunk
+
+        for future in as_completed(future_map):
+            try:
+                item = future.result()
+                with results_lock:
+                    results.append(item)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+                break
+
+    if errors:
+        ended_at = now()
+        stats = RunStats(
+            started_at=started_at,
+            ended_at=ended_at,
+            duration_sec=ended_at - started_at,
+            input_path=input_path,
+            output_dir=out_dir,
+            provider=provider,
+            chunk_count=len(chunks),
+            chunk_skipped=0,
+            chunk_processed=0,
+            chunk_failed=1,
+            span_count=len(spans),
+            suppressed_count=0,
+        )
+        write_run_log(os.path.join(out_dir, "run.log"), stats, {"error": str(errors[0])})
+        raise RuntimeError("Chunk failed") from errors[0]
+
+    results.sort(key=lambda x: x[0].t0)
+
     chunk_skipped = 0
     chunk_processed = 0
 
-    futures = []
-    chunk_jobs: List[Tuple[Chunk, int]] = []
-    for chunk in chunks:
-        if not chunk_has_speech(chunk, speech_segments):
-            skip_chunk = Chunk(
-                chunk_id=chunk.chunk_id,
-                t0=chunk.t0,
-                t1=chunk.t1,
-                overlap_left=chunk.overlap_left,
-                overlap_right=chunk.overlap_right,
-                skip_reason="non_speech",
-            )
+    for chunk, skip_reason, chunk_spans, speaker_block, speaker_map_block, gcl_overrides in results:
+        if skip_reason:
             append_block(
                 gcl_path,
                 "GCL_CHUNK",
                 {
-                    "chunk_id": skip_chunk.chunk_id,
-                    "t0": f"{skip_chunk.t0}",
-                    "t1": f"{skip_chunk.t1}",
-                    "overlap_left": f"{skip_chunk.overlap_left}",
-                    "overlap_right": f"{skip_chunk.overlap_right}",
-                    "skip_reason": skip_chunk.skip_reason or "",
+                    "chunk_id": chunk.chunk_id,
+                    "t0": f"{chunk.t0}",
+                    "t1": f"{chunk.t1}",
+                    "overlap_left": f"{chunk.overlap_left}",
+                    "overlap_right": f"{chunk.overlap_right}",
+                    "skip_reason": skip_reason,
                 },
             )
             chunk_skipped += 1
@@ -194,59 +257,8 @@ def run_pipeline(
                 "overlap_right": f"{chunk.overlap_right}",
             },
         )
-        chunk_jobs.append((chunk, span_id))
-        span_id += 1
+        chunk_processed += 1
 
-    errors: List[Tuple[Chunk, Exception]] = []
-    future_map = {}
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
-        for chunk, sid_start in chunk_jobs:
-            future = executor.submit(
-                _process_chunk,
-                chunk=chunk,
-                input_path=audio_path,
-                input_hash=input_hash,
-                provider=provider,
-                params=params,
-                cache=cache,
-                span_start_id=sid_start,
-                retry=retry,
-            )
-            future_map[future] = chunk
-
-        results = []
-        for future in as_completed(future_map):
-            try:
-                results.append(future.result())
-                chunk_processed += 1
-            except Exception as exc:  # noqa: BLE001
-                errors.append((future_map[future], exc))
-                break
-
-    if errors:
-        for future in future_map:
-            future.cancel()
-        chunk, exc = errors[0]
-        ended_at = now()
-        stats = RunStats(
-            started_at=started_at,
-            ended_at=ended_at,
-            duration_sec=ended_at - started_at,
-            input_path=input_path,
-            output_dir=out_dir,
-            provider=provider,
-            chunk_count=len(chunks),
-            chunk_skipped=chunk_skipped,
-            chunk_processed=chunk_processed,
-            chunk_failed=len(errors),
-            span_count=len(spans),
-            suppressed_count=0,
-        )
-        write_run_log(os.path.join(out_dir, "run.log"), stats, {"error": str(exc)})
-        raise RuntimeError(f"Chunk failed: {chunk.chunk_id}") from exc
-
-    results.sort(key=lambda x: x[0].t0)
-    for chunk, chunk_spans, speaker_block, speaker_map_block, gcl_overrides in results:
         for override in gcl_overrides:
             append_block(gcl_path, "GCL_OVERRIDE", override)
 
@@ -324,3 +336,6 @@ def run_pipeline(
         suppressed_count=len(suppressed),
     )
     write_run_log(os.path.join(out_dir, "run.log"), stats)
+
+    if os.path.isdir(tmp_dir):
+        shutil.rmtree(tmp_dir, ignore_errors=True)

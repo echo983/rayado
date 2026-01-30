@@ -91,16 +91,22 @@ def extract_audio_segment(
     return proc.stdout
 
 
-def extract_audio_file(
+def extract_audio_file_segment(
     input_path: str,
     output_path: str,
     *,
+    start: float,
+    end: float,
     sample_rate: int = 16000,
     channels: int = 1,
 ) -> None:
     cmd = [
         "ffmpeg",
         "-y",
+        "-ss",
+        f"{start}",
+        "-to",
+        f"{end}",
         "-i",
         input_path,
         "-ar",

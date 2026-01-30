@@ -19,9 +19,9 @@
 - 允许直接跳过静音/噪音区间，宁可跳过省成本。
 
 ## 总体流程
-1) AudioPrep：用 `ffmpeg` 提取音轨（16kHz mono wav），落盘 `audio.wav`。
-2) VAD 预扫：对 `audio.wav` 进行低成本检测，生成 speech mask（不走 ASR，不产生成本）。
-3) ChunkPlan：按固定时间切片（默认 120s，左右各 1.5s overlap，步长 117s），仅在 speech mask 覆盖区域内生成 chunk。
+1) AudioPrep：按 chunk 用 `ffmpeg` 抽取 16kHz mono wav（临时文件），避免全片转码阻塞。
+2) VAD 预扫：对每个 chunk wav 做检测，无语音则直接丢弃该段。
+3) ChunkPlan：按固定时间切片（默认 120s，左右各 1.5s overlap，步长 117s），逐段进入 VAD/ASR。
 4) ASRPool：按并发上限发送请求；每个 chunk 只允许重试一次。
 5) GCLWriter：统一追加写入 GCL（append-only）。
 6) CoherenceJobs（同语种增强，自动可撤销）：
