@@ -138,10 +138,28 @@ def run_pipeline(
     vad_pad_sec: float,
 ) -> None:
     started_at = now()
+    step_timings: List[Dict[str, float | str | None]] = []
+    current_step: Dict[str, float | str | None] | None = None
+
+    def step_start(name: str) -> Dict[str, float | str | None]:
+        entry = {"name": name, "started_at": now(), "ended_at": None, "duration_sec": None}
+        step_timings.append(entry)
+        return entry
+
+    def step_end(entry: Dict[str, float | str | None]) -> None:
+        ended = now()
+        entry["ended_at"] = ended
+        started = entry.get("started_at")
+        if isinstance(started, (int, float)):
+            entry["duration_sec"] = ended - started
+    current_step = step_start("init")
     ensure_dir(out_dir)
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
+    step_end(current_step)
 
+    current_step = step_start("probe_duration")
     duration = ffprobe_duration(input_path)
+    step_end(current_step)
 
     gcl_path = os.path.join(out_dir, "episode.gcl")
     ensure_header(gcl_path)
@@ -164,7 +182,9 @@ def run_pipeline(
             }
         )
 
+    current_step = step_start("chunk_plan")
     chunks = generate_chunks(duration, chunk_sec=chunk_sec, overlap_sec=overlap_sec)
+    step_end(current_step)
 
     tmp_dir = os.path.join(out_dir, "_audio_chunks")
     ensure_dir(tmp_dir)
@@ -175,6 +195,7 @@ def run_pipeline(
 
     vad_enabled = vad_name.lower() not in {"none", "off", "disabled"}
 
+    current_step = step_start("chunk_process")
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as executor:
         future_map = {}
         for idx, chunk in enumerate(chunks, start=1):
@@ -204,6 +225,7 @@ def run_pipeline(
             except Exception as exc:  # noqa: BLE001
                 errors.append(exc)
                 break
+    step_end(current_step)
 
     if errors:
         ended_at = now()
@@ -221,7 +243,11 @@ def run_pipeline(
             span_count=len(spans),
             suppressed_count=0,
         )
-        write_run_log(os.path.join(out_dir, "run.log"), stats, {"error": str(errors[0])})
+        write_run_log(
+            os.path.join(out_dir, "run.log"),
+            stats,
+            {"error": str(errors[0]), "steps": step_timings},
+        )
         raise RuntimeError("Chunk failed") from errors[0]
 
     results.sort(key=lambda x: x[0].t0)
@@ -288,7 +314,9 @@ def run_pipeline(
                 },
             )
 
+    current_step = step_start("overlap_judge")
     overlap_records, suppressed = overlap_judge(chunks, spans)
+    step_end(current_step)
     for record in overlap_records:
         append_block(gcl_path, "GCL_OVERLAP", record)
     for sid in suppressed:
@@ -306,19 +334,30 @@ def run_pipeline(
     suppressed_set = set(suppressed)
     spans_filtered = [span for span in spans if span.sid not in suppressed_set]
 
+    current_step = step_start("entity_extract")
     entities, mentions = extract_entities(spans_filtered)
+    step_end(current_step)
     for entity in entities:
         append_block(gcl_path, "GCL_ENTITY", entity)
     for mention in mentions:
         append_block(gcl_path, "GCL_MENTION", mention)
 
+    current_step = step_start("render_outputs")
     transcript = render_transcript(spans_filtered, speaker_by_sid=speaker_by_sid)
     srt = render_srt(spans_filtered, speaker_by_sid=speaker_by_sid)
+    step_end(current_step)
 
+    current_step = step_start("write_outputs")
     with open(os.path.join(out_dir, "transcript.txt"), "w", encoding="utf-8") as f:
         f.write(transcript)
     with open(os.path.join(out_dir, "subtitles.srt"), "w", encoding="utf-8") as f:
         f.write(srt)
+    step_end(current_step)
+
+    if os.path.isdir(tmp_dir):
+        current_step = step_start("cleanup")
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        step_end(current_step)
 
     ended_at = now()
     stats = RunStats(
@@ -335,7 +374,4 @@ def run_pipeline(
         span_count=len(spans_filtered),
         suppressed_count=len(suppressed),
     )
-    write_run_log(os.path.join(out_dir, "run.log"), stats)
-
-    if os.path.isdir(tmp_dir):
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+    write_run_log(os.path.join(out_dir, "run.log"), stats, {"steps": step_timings})
