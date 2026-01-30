@@ -12,6 +12,7 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - `AGENTS.md` contributor guidelines
 - `docs/spec/` design specs and templates
 - `docs/references/` source notes and background material
+- `src/rayado/` CLI and pipeline code
 
 ## Key Documents
 - `docs/spec/SPEC.md` system specification
@@ -19,5 +20,11 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - `docs/spec/CACHE_SCHEMA.md` cache storage schema
 - `docs/spec/CLI.md` CLI contract
 
+## MVP Usage
+- Install locally (editable): `pip install -e .`
+- Run: `rayado transcribe <input>`
+- Default provider is `mock` (no external ASR). Use `--asr-provider noop` for dry runs.
+- Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
+
 ## Status
-Design complete; entering implementation milestones.
+Milestone 1 in progress: end‑to‑end CLI + GCL + TXT/SRT output.

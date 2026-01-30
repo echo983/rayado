@@ -1,0 +1,13 @@
+﻿[project]
+name = "rayado"
+version = "0.1.0"
+description = "High-throughput append-only CLI transcription pipeline"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+rayado = "rayado.cli:main"
+
+[build-system]
+requires = ["setuptools>=65"]
+build-backend = "setuptools.build_meta"
