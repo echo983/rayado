@@ -23,6 +23,7 @@ def run_pipeline(
     provider: str,
     retry: int,
     deepgram_model: str,
+    deepgram_language: str,
     deepgram_diarize: bool,
     deepgram_smart_format: bool,
     deepgram_punctuate: bool,
@@ -106,6 +107,7 @@ def run_pipeline(
             params.update(
                 {
                     "model": deepgram_model,
+                    "language": deepgram_language,
                     "diarize": deepgram_diarize,
                     "smart_format": deepgram_smart_format,
                     "punctuate": deepgram_punctuate,

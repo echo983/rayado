@@ -25,11 +25,13 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - Set API key: `setx DEEPGRAM_API_KEY "<your_key>"`
 - Run: `rayado transcribe <input>`
 - Default provider is `deepgram` (Nova‑2). Use `--asr-provider mock` or `noop` for dry runs.
+- For Spanish, you can pass `--deepgram-language es`.
 - Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
 
 ## E2E Test
 - Test file: `docs/testfiles/test.webm` (not tracked; add your own)
 - Run: `python scripts/run_e2e.py` (uses smaller chunk size and disables diarization)
+- Debug Deepgram directly: `python scripts/debug_deepgram.py`
 
 ## Status
 Milestone 1 in progress: end‑to‑end CLI + GCL + TXT/SRT output.

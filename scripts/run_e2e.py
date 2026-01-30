@@ -30,10 +30,12 @@ def main() -> int:
         "--out",
         str(OUT_DIR),
         "--chunk-sec",
-        "10",
+        "5",
         "--overlap-sec",
-        "1.0",
+        "0.5",
         "--no-deepgram-diarize",
+        "--deepgram-language",
+        "es",
     ]
     proc = subprocess.run(cmd, cwd=str(ROOT))
     if proc.returncode != 0:

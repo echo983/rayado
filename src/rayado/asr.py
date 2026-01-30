@@ -72,6 +72,7 @@ def transcribe_chunk(
             raise RuntimeError("DEEPGRAM_API_KEY is not set")
 
         model = params.get("model", "nova-2")
+        language = params.get("language", "")
         diarize = params.get("diarize", True)
         smart_format = params.get("smart_format", False)
         punctuate = params.get("punctuate", True)
@@ -89,6 +90,8 @@ def transcribe_chunk(
             f"&smart_format={'true' if smart_format else 'false'}"
             f"&punctuate={'true' if punctuate else 'false'}"
         )
+        if language:
+            query += f"&language={language}"
         url = f"https://api.deepgram.com/v1/listen?{query}"
         req = urllib.request.Request(
             url=url,
@@ -100,7 +103,7 @@ def transcribe_chunk(
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:
                 payload = json.loads(resp.read().decode("utf-8"))
         except Exception as exc:  # noqa: BLE001 - surface as runtime error
             raise RuntimeError(f"Deepgram request failed: {exc}") from exc
