@@ -107,7 +107,7 @@ conf 0.84
 ```
 GCL_SPEAKER_MAP
 spk_id SPK01
-eid E0001
+sid S0001
 conf 0.80
 ```
 

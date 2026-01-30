@@ -12,6 +12,7 @@ from .gcl import append_block, ensure_header
 from .models import Chunk, Span
 from .overlap import overlap_judge
 from .render import render_srt, render_transcript
+from .speaker import build_speaker_blocks
 from .utils import ensure_dir, hash_file
 from .vad import build_speech_segments
 
@@ -69,6 +70,8 @@ def run_pipeline(
 
     spans: List[Span] = []
     span_id = 1
+    speakers_written: set[str] = set()
+
     for chunk in chunks:
         if not chunk_has_speech(chunk, speech_segments):
             skip_chunk = Chunk(
@@ -153,6 +156,19 @@ def run_pipeline(
                         "deps": detected_lang,
                     },
                 )
+
+            words = chunk_meta.get("words") or []
+            speaker_block, speaker_map_block = build_speaker_blocks(
+                chunk_id=chunk.chunk_id,
+                span_id=chunk_spans[0].sid,
+                words=words,
+            )
+            if speaker_block:
+                spk_id = speaker_block.get("spk_id", "")
+                if spk_id and spk_id not in speakers_written:
+                    append_block(gcl_path, "GCL_SPEAKER", speaker_block)
+                    speakers_written.add(spk_id)
+                append_block(gcl_path, "GCL_SPEAKER_MAP", speaker_map_block)
 
         for span in chunk_spans:
             spans.append(span)

@@ -122,7 +122,7 @@ def transcribe_chunk(
 
         channel = (payload.get("results", {}).get("channels") or [{}])[0]
         alt = (channel.get("alternatives") or [{}])[0]
-        transcript = (alt.get("transcript") or "").strip()
+        transcript = (alt.get("transcript" ) or "").strip()
         words = alt.get("words") or []
         confidence = float(alt.get("confidence") or 0.0)
         detected_language = channel.get("detected_language")
@@ -150,6 +150,7 @@ def transcribe_chunk(
 
         payload["_rayado_detected_language"] = detected_language
         payload["_rayado_language_confidence"] = language_confidence
+        payload["_rayado_words"] = words
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 
@@ -158,6 +159,7 @@ def transcribe_chunk(
         meta = {
             "detected_language": payload.get("_rayado_detected_language"),
             "language_confidence": payload.get("_rayado_language_confidence"),
+            "words": payload.get("_rayado_words") or [],
         }
 
     if cache is not None:

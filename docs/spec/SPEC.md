@@ -58,6 +58,7 @@
   - 低置信实体不强行合并，允许并存。
 - SpeakerDiarization：
   - 仅输出本集说话人簇与置信度；跨集关联通过 `GCL_SPEAKER_MAP` 追加。
+  - 基础实现：从 ASR words 中读取 `speaker`，为每个 span 写 `GCL_SPEAKER_MAP`。
 - SceneJobs：
   - 以时间窗或转场特征做粗粒度场景划分；不追求精细。
 
