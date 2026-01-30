@@ -20,7 +20,7 @@ def main() -> int:
         print(f"Missing test file: {TEST_FILE}", file=sys.stderr)
         return 3
 
-    url = "https://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&detect_language=es"
+    url = "https://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&detect_language=true"
     out_dir = ROOT / "out" / "test"
     out_dir.mkdir(parents=True, exist_ok=True)
     wav_path = out_dir / "debug_segment.wav"

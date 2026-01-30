@@ -33,8 +33,6 @@ def main() -> int:
         "5",
         "--overlap-sec",
         "0.5",
-        "--deepgram-detect-language-set",
-        "es",
     ]
     proc = subprocess.run(cmd, cwd=str(ROOT))
     if proc.returncode != 0:
