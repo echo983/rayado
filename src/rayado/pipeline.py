@@ -140,6 +140,12 @@ def run_pipeline(
     started_at = now()
     step_timings: List[Dict[str, float | str | None]] = []
     current_step: Dict[str, float | str | None] | None = None
+    chunk_count = 0
+    chunk_skipped = 0
+    chunk_processed = 0
+    chunk_failed = 0
+    span_count = 0
+    suppressed_count = 0
 
     def step_start(name: str) -> Dict[str, float | str | None]:
         entry = {"name": name, "started_at": now(), "ended_at": None, "duration_sec": None}
@@ -152,14 +158,33 @@ def run_pipeline(
         started = entry.get("started_at")
         if isinstance(started, (int, float)):
             entry["duration_sec"] = ended - started
+
+    def write_snapshot(status: str) -> None:
+        snapshot = RunStats(
+            started_at=started_at,
+            ended_at=now(),
+            duration_sec=now() - started_at,
+            input_path=input_path,
+            output_dir=out_dir,
+            provider=provider,
+            chunk_count=chunk_count,
+            chunk_skipped=chunk_skipped,
+            chunk_processed=chunk_processed,
+            chunk_failed=chunk_failed,
+            span_count=span_count,
+            suppressed_count=suppressed_count,
+        )
+        write_run_log(os.path.join(out_dir, "run.log"), snapshot, {"status": status, "steps": step_timings})
     current_step = step_start("init")
     ensure_dir(out_dir)
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
     step_end(current_step)
+    write_snapshot("running")
 
     current_step = step_start("probe_duration")
     duration = ffprobe_duration(input_path)
     step_end(current_step)
+    write_snapshot("running")
 
     gcl_path = os.path.join(out_dir, "episode.gcl")
     ensure_header(gcl_path)
@@ -184,7 +209,9 @@ def run_pipeline(
 
     current_step = step_start("chunk_plan")
     chunks = generate_chunks(duration, chunk_sec=chunk_sec, overlap_sec=overlap_sec)
+    chunk_count = len(chunks)
     step_end(current_step)
+    write_snapshot("running")
 
     tmp_dir = os.path.join(out_dir, "_audio_chunks")
     ensure_dir(tmp_dir)
@@ -231,6 +258,7 @@ def run_pipeline(
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
     step_end(current_step)
+    write_snapshot("running")
 
     if errors:
         ended_at = now()
@@ -241,12 +269,12 @@ def run_pipeline(
             input_path=input_path,
             output_dir=out_dir,
             provider=provider,
-            chunk_count=len(chunks),
-            chunk_skipped=0,
-            chunk_processed=0,
+            chunk_count=chunk_count,
+            chunk_skipped=chunk_skipped,
+            chunk_processed=chunk_processed,
             chunk_failed=1,
-            span_count=len(spans),
-            suppressed_count=0,
+            span_count=span_count,
+            suppressed_count=suppressed_count,
         )
         write_run_log(
             os.path.join(out_dir, "run.log"),
@@ -258,9 +286,6 @@ def run_pipeline(
         raise RuntimeError("Chunk failed") from errors[0]
 
     results.sort(key=lambda x: x[0].t0)
-
-    chunk_skipped = 0
-    chunk_processed = 0
 
     for chunk, skip_reason, chunk_spans, speaker_block, speaker_map_block, gcl_overrides in results:
         if skip_reason:
@@ -308,6 +333,7 @@ def run_pipeline(
 
         for span in chunk_spans:
             spans.append(span)
+            span_count += 1
             append_block(
                 gcl_path,
                 "GCL_SPAN",
@@ -324,6 +350,8 @@ def run_pipeline(
     current_step = step_start("overlap_judge")
     overlap_records, suppressed = overlap_judge(chunks, spans)
     step_end(current_step)
+    suppressed_count = len(suppressed)
+    write_snapshot("running")
     for record in overlap_records:
         append_block(gcl_path, "GCL_OVERLAP", record)
     for sid in suppressed:
@@ -344,6 +372,7 @@ def run_pipeline(
     current_step = step_start("entity_extract")
     entities, mentions = extract_entities(spans_filtered)
     step_end(current_step)
+    write_snapshot("running")
     for entity in entities:
         append_block(gcl_path, "GCL_ENTITY", entity)
     for mention in mentions:
@@ -353,6 +382,7 @@ def run_pipeline(
     transcript = render_transcript(spans_filtered, speaker_by_sid=speaker_by_sid)
     srt = render_srt(spans_filtered, speaker_by_sid=speaker_by_sid)
     step_end(current_step)
+    write_snapshot("running")
 
     current_step = step_start("write_outputs")
     with open(os.path.join(out_dir, "transcript.txt"), "w", encoding="utf-8") as f:
@@ -360,11 +390,13 @@ def run_pipeline(
     with open(os.path.join(out_dir, "subtitles.srt"), "w", encoding="utf-8") as f:
         f.write(srt)
     step_end(current_step)
+    write_snapshot("running")
 
     if os.path.isdir(tmp_dir):
         current_step = step_start("cleanup")
         shutil.rmtree(tmp_dir, ignore_errors=True)
         step_end(current_step)
+        write_snapshot("running")
 
     ended_at = now()
     stats = RunStats(
@@ -374,11 +406,11 @@ def run_pipeline(
         input_path=input_path,
         output_dir=out_dir,
         provider=provider,
-        chunk_count=len(chunks),
+        chunk_count=chunk_count,
         chunk_skipped=chunk_skipped,
         chunk_processed=chunk_processed,
         chunk_failed=0,
         span_count=len(spans_filtered),
-        suppressed_count=len(suppressed),
+        suppressed_count=suppressed_count,
     )
-    write_run_log(os.path.join(out_dir, "run.log"), stats, {"steps": step_timings})
+    write_run_log(os.path.join(out_dir, "run.log"), stats, {"status": "done", "steps": step_timings})
