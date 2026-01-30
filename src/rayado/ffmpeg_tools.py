@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import re
+import subprocess
 from typing import List, Tuple
 
 from .utils import run_cmd
@@ -58,3 +59,33 @@ def silencedetect(
         if end > start:
             silences.append((start, end))
     return silences
+
+
+def extract_audio_segment(
+    input_path: str,
+    *,
+    start: float,
+    end: float,
+    sample_rate: int = 16000,
+    channels: int = 1,
+) -> bytes:
+    cmd = [
+        "ffmpeg",
+        "-ss",
+        f"{start}",
+        "-to",
+        f"{end}",
+        "-i",
+        input_path,
+        "-ar",
+        str(sample_rate),
+        "-ac",
+        str(channels),
+        "-f",
+        "wav",
+        "pipe:1",
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if proc.returncode != 0 or not proc.stdout:
+        raise RuntimeError(proc.stderr.decode(errors="ignore") or "ffmpeg extract failed")
+    return proc.stdout

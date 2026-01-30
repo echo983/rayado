@@ -21,7 +21,7 @@ def main() -> None:
     parser.add_argument("--chunk-sec", type=float, default=25.0, help="Chunk length in seconds")
     parser.add_argument("--overlap-sec", type=float, default=1.5, help="Overlap on each side in seconds")
     parser.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
-    parser.add_argument("--asr-provider", default="mock", help="ASR provider (mock/noop)")
+    parser.add_argument("--asr-provider", default="deepgram", help="ASR provider (deepgram/mock/noop)")
     parser.add_argument(
         "--cache-dir",
         default=os.path.join(".cache", "rayado"),
@@ -55,6 +55,7 @@ def main() -> None:
         out_dir=out_dir,
         cache_dir=args.cache_dir,
         provider=args.asr_provider,
+        retry=args.retry,
         chunk_sec=args.chunk_sec,
         overlap_sec=args.overlap_sec,
         vad_name=args.vad,

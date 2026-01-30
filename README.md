@@ -22,8 +22,9 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 
 ## MVP Usage
 - Install locally (editable): `pip install -e .`
+- Set API key: `setx DEEPGRAM_API_KEY "<your_key>"`
 - Run: `rayado transcribe <input>`
-- Default provider is `mock` (no external ASR). Use `--asr-provider noop` for dry runs.
+- Default provider is `deepgram` (Nova‑2). Use `--asr-provider mock` or `noop` for dry runs.
 - Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
 
 ## Status

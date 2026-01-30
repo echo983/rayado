@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 import os
-from typing import List, Optional
+from typing import List
 
 from . import __version__
 from .asr import transcribe_chunk
@@ -21,6 +21,7 @@ def run_pipeline(
     out_dir: str,
     cache_dir: str,
     provider: str,
+    retry: int,
     chunk_sec: float,
     overlap_sec: float,
     vad_name: str,
@@ -96,14 +97,34 @@ def run_pipeline(
             },
         )
 
-        chunk_spans = transcribe_chunk(
-            input_hash=input_hash,
-            chunk=chunk,
-            provider=provider,
-            params={"version": __version__},
-            cache=cache,
-            span_start_id=span_id,
-        )
+        params = {"version": __version__}
+        if provider == "deepgram":
+            params.update(
+                {
+                    "model": "nova-2",
+                    "diarize": True,
+                    "smart_format": False,
+                    "punctuate": True,
+                }
+            )
+
+        attempts = 0
+        while True:
+            try:
+                chunk_spans = transcribe_chunk(
+                    input_path=input_path,
+                    input_hash=input_hash,
+                    chunk=chunk,
+                    provider=provider,
+                    params=params,
+                    cache=cache,
+                    span_start_id=span_id,
+                )
+                break
+            except Exception:
+                attempts += 1
+                if attempts > retry:
+                    raise
         for span in chunk_spans:
             spans.append(span)
             span_id += 1
