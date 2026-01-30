@@ -1,0 +1,226 @@
+GCL_HDR
+ver 0.4
+mode append_only
+immutability hard
+id_space ulid
+sid_scheme tkey_ulid
+time_unit seconds_float
+source_lang ko
+target_lang zh
+
+
+---
+
+GCL_RULE
+rule append_only_no_edit
+rule evidence_and_override_separated
+rule spans_are_immutable
+rule entities_are_global
+rule overrides_latest_wins
+rule higher_conf_wins
+rule final_output_sorted_by_sid
+rule final_text_from_latest_override_else_raw
+
+
+---
+
+GCL_ENTITY
+fields eid etype canon_zh conf alias_list notes
+
+
+---
+
+GCL_SPEAKER
+fields spk_id label mapped_eid conf
+
+
+---
+
+GCL_CHUNK
+fields chunk_id t0 t1 overlap_left overlap_right asr_vendor asr_model
+
+
+---
+
+GCL_SPAN
+fields sid t0 t1 chunk_id text_raw asr_conf
+
+
+---
+
+GCL_MENTION
+fields mid sid eid surface conf
+
+
+---
+
+GCL_OVERRIDE
+fields oid sid norm_zh policy conf deps
+
+policy replace_entity
+policy translate
+policy fix_punctuation
+policy resolve_pronoun
+policy merge_overlap
+policy suppress
+
+
+---
+
+GCL_OVERLAP
+fields olp_id t0 t1 left_chunk right_chunk left_sid right_sid decision method conf
+
+decision keep_left
+decision keep_right
+decision keep_both
+decision merge
+
+method time_overlap_then_text_similarity
+
+
+---
+
+GCL_OVERLAP_RULE
+rule candidate_if_time_iou_ge 0.30
+rule sim_metric token_jaccard
+rule sim_threshold_duplicate 0.70
+rule normalize_text lower_trim_space_punct
+rule tokenization whitespace_then_cjk
+rule choose_by_higher_asr_conf
+rule tie_breaker_later_chunk_time
+rule final_tie_breaker_lexical_sid
+
+
+---
+
+GCL_MERGE_RULE
+rule merge_target choose_right
+rule merge_text concat_left_then_right
+rule dedup_longest_common_suffix_prefix
+rule lcs_window_max_chars 80
+
+
+---
+
+GCL_SUPPRESS_RULE
+rule suppress_output_text 重复已裁决
+
+
+---
+
+GCL_SCENE_HDR
+scene_layer ver 0.4
+scene_id_space ulid
+
+
+---
+
+GCL_SCENE
+fields scene_id t0 t1 title_zh conf deps
+
+
+---
+
+GCL_SCENE_SPAN
+fields link_id scene_id sid role conf
+
+role anchor
+role dialogue
+role action
+role narration
+
+
+---
+
+GCL_SCENE_RULE
+rule scene_is_time_bounded
+rule scene_time_may_overlap_spans
+rule scene_does_not_modify_spans
+rule scene_groups_spans_only
+rule scene_order_by_t0
+rule span_can_belong_to_multiple_scenes
+
+
+---
+
+GCL_SCENE_MERGE_RULE
+rule merge_scenes_if_time_iou_ge 0.60
+rule merge_choose_earlier_scene_id
+rule merge_title_choose_higher_conf
+rule merge_conf_take_max
+
+
+---
+
+GCL_RENDER
+rule collect_all_spans
+rule order_by_sid_lexical
+rule apply_latest_override
+rule skip_suppressed
+rule emit_norm_else_raw
+
+
+---
+
+GCL_SCENE_RENDER
+rule render_scene_blocks_by_time
+rule within_scene_order_spans_by_sid
+rule emit_scene_title_then_text
+rule skip_suppressed_spans
+
+
+---
+
+GCL_APPEND_EXAMPLE
+
+GCL_ENTITY
+eid E01
+etype Person
+canon_zh 金哲洙
+conf 0.92
+alias_list 김철수 Kim Cheolsu 金哲秀
+
+GCL_CHUNK
+chunk_id C21
+t0 600.0
+t1 630.0
+overlap_left 1.5
+overlap_right 1.5
+asr_vendor openai
+asr_model gpt_4o_transcribe
+
+GCL_SPAN
+sid S00615200 01JABC
+t0 615.2
+t1 628.7
+chunk_id C21
+text_raw 철수가 왔어
+asr_conf 0.86
+
+GCL_MENTION
+mid M01
+sid S00615200 01JABC
+eid E01
+surface 철수
+conf 0.88
+
+GCL_OVERRIDE
+oid O01
+sid S00615200 01JABC
+norm_zh 金哲洙来了
+policy translate
+conf 0.93
+
+GCL_SCENE
+scene_id SC01
+t0 610.0
+t1 690.0
+title_zh 金哲洙回到家中
+conf 0.88
+
+GCL_SCENE_SPAN
+link_id L01
+scene_id SC01
+sid S00615200 01JABC
+role dialogue
+conf 0.90

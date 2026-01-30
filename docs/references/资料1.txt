@@ -1,0 +1,434 @@
+并行音频转写方案，默认以你已存档的 GCL v0.4 作为唯一全局状态载体，整个系统目标是：
+
+2 小时级音频
+
+128 路并行
+
+韩语音轨
+
+最终产物：高质量中文文本，并且可回放、可增量、可复用、可缓存提示词
+
+
+我不重复 GCL v0.4 的内容，只描述“怎么用它把系统跑起来”。
+
+
+---
+
+0 总体结构
+
+模块分层
+1 预处理层 AudioPrep
+2 切片规划层 ChunkPlan
+3 并发转写层 ASRPool
+4 追加写入层 GCLWriter
+5 一致性裁决层 CoherenceJobs
+6 渲染导出层 RenderExport
+
+数据流
+AudioPrep -> ChunkPlan -> ASRPool -> GCLWriter
+GCLWriter -> CoherenceJobs -> GCLWriter
+GCLWriter -> RenderExport
+
+关键原则
+
+所有新信息只追加写 GCL
+
+任何修正只通过追加 Override 或 Overlap 裁决表达
+
+任意阶段崩溃可从 GCL 重放恢复
+
+
+
+---
+
+1 预处理层 AudioPrep
+
+输入
+
+原视频或音频文件
+
+
+输出
+
+统一采样率单声道音频（建议 16kHz mono wav 或 flac）
+
+可选：响度归一化（避免电影混音导致低声对白漏识别）
+
+
+建议处理
+
+ffmpeg 提取音轨
+
+16kHz mono
+
+可选 loudnorm 或 dynaudnorm
+
+
+注意
+
+不要做强降噪当默认，会引入伪影；需要时再做对比实验
+
+
+
+---
+
+2 切片规划层 ChunkPlan
+
+目标
+
+让 128 并发有效
+
+避免句中硬切
+
+overlap 可确定性裁决
+
+chunk 便于上传和服务端处理
+
+
+推荐参数
+
+chunk 时长 25 秒
+
+overlap_left 1.5 秒
+
+overlap_right 1.5 秒
+
+步长 22 秒
+
+2 小时约 327 个 chunk，足够让 128 并发进入稳定态
+
+
+切片规则
+
+纯时间切也可，但建议加一个轻量 VAD 辅助调整边界
+
+VAD 只用于把切点推到静音附近，不用于丢弃语音
+
+
+写入
+
+每个 chunk 先追加一条 GCL_CHUNK
+
+chunk_id 建议包含起止时间或序号，便于追踪
+
+
+
+---
+
+3 并发转写层 ASRPool
+
+目标
+
+128 路并行提交 chunk
+
+控制速率，避免 429 抖动
+
+自动重试
+
+输出尽量包含时间信息，便于后处理
+
+
+推荐策略
+
+并发上限 N_max 128
+
+动态并发窗口 N_eff 自适应
+
+以 429 和 p95 延迟作为反馈
+
+429 升高则将 N_eff 乘 0.8
+
+429 低且队列积压则将 N_eff 加 8，直到 N_max
+
+
+
+请求粒度
+
+每个 chunk 单独请求
+
+ASR 输出要求至少包含文本；能带词级或段级时间戳更好
+
+
+落地写入
+
+对每个 chunk 的结果，立即拆成多个 span
+
+建议 span 目标 2 到 12 秒
+
+依据标点或停顿切分
+
+
+每个 span 追加写一条 GCL_SPAN
+
+sid 用时间键方案生成，保证按字典序即时间序
+
+
+失败处理
+
+请求失败写入一条失败记录也可做成 chunk 的 notes，或独立错误日志
+
+重试指数退避，最多 5 次
+
+超过次数则保留空洞，后续可补跑
+
+
+
+---
+
+4 追加写入层 GCLWriter
+
+职责
+
+统一负责 append
+
+保证写入顺序可乱序，但文件本身永远只追加
+
+
+写入原则
+
+chunk 到达顺序不重要
+
+span 到达顺序不重要
+
+渲染时按 sid 排序即可得到时间线
+
+
+建议实现
+
+单写入线程或单写入进程
+
+ASRPool 结果通过队列提交给 Writer
+
+Writer 按块写入，块之间留空行即可
+
+
+
+---
+
+5 一致性裁决层 CoherenceJobs
+
+这层是“高质量中文”的核心。全部输出仍然只追加写 GCL，不改旧 span。
+
+CoherenceJobs 分为 4 个子任务，可以并行跑，也可以分两轮跑。
+
+5.1 Overlap 裁决任务 OverlapJudge
+
+输入
+
+相邻 chunk 的 overlap 区间内的 span 集合
+
+
+输出
+
+追加 GCL_OVERLAP
+
+必要时对被压制 sid 追加 GCL_OVERRIDE policy suppress
+
+
+执行时机
+
+chunk 对 CK_i 和 CK_{i+1} 的 spans 都到齐后即可跑
+
+不必等全片
+
+
+5.2 实体与术语任务 EntityBuild
+
+输入
+
+spans 文本
+
+
+输出
+
+追加 GCL_ENTITY
+
+追加 GCL_MENTION
+
+可选：把常见错写加入 alias_list 的增量实体块
+
+
+策略
+
+先自动抽取高频专名候选
+
+用频率与上下文聚类形成实体
+
+对同一实体多写几条 alias 证据没问题，反正 append only
+
+
+5.3 翻译与规范化任务 TranslateAndNormalize
+
+目标
+
+把每个 sid 的 text_raw 变为高质量 norm_zh
+
+
+输出
+
+追加 GCL_OVERRIDE policy translate
+
+如需二次修标点再追加 policy fix_punctuation
+
+
+关键做法
+
+翻译必须吃“全局术语表”
+
+从 GCL_ENTITY 读取 canon_zh 与 alias
+
+
+翻译要保持句子可读性
+
+不要追求逐字对齐，追求中文成文质量
+
+对人名地名要强制替换为 canon_zh
+
+
+缓存友好
+
+固定系统提示词只包含“翻译规则与输出格式”
+
+增量输入只给
+
+本次要翻译的 spans
+
+相关实体片段的最小子集
+
+上下文窗口建议只取前后各 2 到 4 个 span 的 norm 或 raw
+
+
+
+5.4 指代与一致性修复任务 PronounResolve
+
+输入
+
+已有的初版 norm_zh
+
+scene 或临近窗口上下文
+
+
+输出
+
+追加 GCL_OVERRIDE policy resolve_pronoun 或 replace_entity
+
+
+策略
+
+只对高价值冲突做
+
+不做全片重写
+
+重点修复 这 他 她 你们 他们 等造成语义断裂的点
+
+
+
+---
+
+6 场景层 SceneJobs
+
+不是必须，但对“LLM 理解整片内容”非常有用。
+
+输入
+
+norm_zh spans 时间线
+
+
+输出
+
+追加 GCL_SCENE
+
+追加 GCL_SCENE_SPAN
+
+
+策略
+
+粗粒度即可
+
+2 到 5 分钟一个 scene
+
+或以地点变化、人物组合变化为依据
+
+
+scene title_zh 要简短，便于检索
+
+
+
+---
+
+7 渲染导出层 RenderExport
+
+输出物建议一次导出三份
+
+1 纯中文全文
+
+按 sid 排序
+
+输出 norm_zh
+
+跳过 suppressed
+
+
+2 带时间码的字幕格式
+
+SRT 或 VTT
+
+每个 span 一条
+
+取 t0 t1
+
+
+3 可检索索引包
+
+entities 列表
+
+scene 列表
+
+scene 到 spans 的映射
+
+方便后续问答或检索
+
+
+
+---
+
+8 你要的“完整并行方案”里最关键的两个工程点
+
+A 速度最大化的核心不是 128 并发本身
+
+而是
+
+chunk 时长别太短
+
+写入与后处理不要阻塞 ASRPool
+
+自适应并发避免 429 重试雪崩
+
+
+B 高质量中文的核心不是 ASR 准确率
+
+而是
+
+全局实体一致性约束
+
+overlap 裁决
+
+翻译与修复的分层 override 策略
+
+任何修复都可审计、可回放、可撤销通过追加新 override 实现
+
+
+
+---
+
+9 一套可直接执行的默认运行顺序
+
+1 AudioPrep 完成
+2 ChunkPlan 生成 chunk 清单并写入 GCL_CHUNK
+3 ASRPool 128 并发跑全片，边跑边写 GCL_SPAN
+4 OverlapJudge 随到随裁决
+5 EntityBuild 跑一遍全片，追加实体与提及
+6 TranslateAndNormalize 跑全片，追加 translate overrides
+7 PronounResolve 只跑冲突点，追加修复 overrides
+8 SceneJobs 可选
+9 RenderExport 导出三份产物
