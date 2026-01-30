@@ -27,5 +27,9 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - Default provider is `deepgram` (Nova‑2). Use `--asr-provider mock` or `noop` for dry runs.
 - Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
 
+## E2E Test
+- Test file: `docs/testfiles/test.webm`
+- Run: `python scripts/run_e2e.py`
+
 ## Status
 Milestone 1 in progress: end‑to‑end CLI + GCL + TXT/SRT output.
