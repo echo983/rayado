@@ -12,6 +12,8 @@ def run_cmd(args: Iterable[str], *, capture_stderr: bool = False) -> subprocess.
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE if capture_stderr else None,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
