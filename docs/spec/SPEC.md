@@ -123,6 +123,7 @@
 ## 输出
 - 纯文本：按 `sid` 顺序拼接，跳过被 suppress 的 span；若有 speaker 映射，前缀 `Speaker_X:`。
 - SRT：每 span 一条，使用 `t0/t1`；若有 speaker 映射，前缀 `Speaker_X:`。
+- 运行统计：写入 `run.log`（JSON），包含耗时、chunk 数、跳过/失败数等。
 
 ## SRT 时间格式
 - time_unit 默认秒（浮点）。

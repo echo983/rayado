@@ -15,6 +15,7 @@ from .models import Chunk, Span
 from .overlap import overlap_judge
 from .render import render_srt, render_transcript
 from .speaker import build_speaker_blocks
+from .stats import RunStats, now, write_run_log
 from .utils import ensure_dir, hash_file
 from .vad import build_speech_segments
 
@@ -100,6 +101,7 @@ def run_pipeline(
     vad_merge_gap_sec: float,
     vad_pad_sec: float,
 ) -> None:
+    started_at = now()
     ensure_dir(out_dir)
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
 
@@ -148,7 +150,9 @@ def run_pipeline(
             }
         )
 
-    # Write chunks and submit jobs
+    chunk_skipped = 0
+    chunk_processed = 0
+
     futures = []
     chunk_jobs: List[Tuple[Chunk, int]] = []
     for chunk in chunks:
@@ -173,6 +177,7 @@ def run_pipeline(
                     "skip_reason": skip_chunk.skip_reason or "",
                 },
             )
+            chunk_skipped += 1
             continue
 
         append_block(
@@ -210,6 +215,7 @@ def run_pipeline(
         for future in as_completed(future_map):
             try:
                 results.append(future.result())
+                chunk_processed += 1
             except Exception as exc:  # noqa: BLE001
                 errors.append((future_map[future], exc))
                 break
@@ -218,9 +224,24 @@ def run_pipeline(
         for future in future_map:
             future.cancel()
         chunk, exc = errors[0]
+        ended_at = now()
+        stats = RunStats(
+            started_at=started_at,
+            ended_at=ended_at,
+            duration_sec=ended_at - started_at,
+            input_path=input_path,
+            output_dir=out_dir,
+            provider=provider,
+            chunk_count=len(chunks),
+            chunk_skipped=chunk_skipped,
+            chunk_processed=chunk_processed,
+            chunk_failed=len(errors),
+            span_count=len(spans),
+            suppressed_count=0,
+        )
+        write_run_log(os.path.join(out_dir, "run.log"), stats, {"error": str(exc)})
         raise RuntimeError(f"Chunk failed: {chunk.chunk_id}") from exc
 
-    # Write results in chunk order for determinism
     results.sort(key=lambda x: x[0].t0)
     for chunk, chunk_spans, speaker_block, speaker_map_block, gcl_overrides in results:
         for override in gcl_overrides:
@@ -283,3 +304,20 @@ def run_pipeline(
         f.write(transcript)
     with open(os.path.join(out_dir, "subtitles.srt"), "w", encoding="utf-8") as f:
         f.write(srt)
+
+    ended_at = now()
+    stats = RunStats(
+        started_at=started_at,
+        ended_at=ended_at,
+        duration_sec=ended_at - started_at,
+        input_path=input_path,
+        output_dir=out_dir,
+        provider=provider,
+        chunk_count=len(chunks),
+        chunk_skipped=chunk_skipped,
+        chunk_processed=chunk_processed,
+        chunk_failed=0,
+        span_count=len(spans_filtered),
+        suppressed_count=len(suppressed),
+    )
+    write_run_log(os.path.join(out_dir, "run.log"), stats)
