@@ -146,6 +146,9 @@ def run_pipeline(
     chunk_failed = 0
     span_count = 0
     suppressed_count = 0
+    progress_chunk_skipped = 0
+    progress_chunk_processed = 0
+    progress_span_count = 0
 
     def step_start(name: str) -> Dict[str, float | str | None]:
         entry = {"name": name, "started_at": now(), "ended_at": None, "duration_sec": None}
@@ -168,10 +171,10 @@ def run_pipeline(
             output_dir=out_dir,
             provider=provider,
             chunk_count=chunk_count,
-            chunk_skipped=chunk_skipped,
-            chunk_processed=chunk_processed,
+            chunk_skipped=progress_chunk_skipped or chunk_skipped,
+            chunk_processed=progress_chunk_processed or chunk_processed,
             chunk_failed=chunk_failed,
-            span_count=span_count,
+            span_count=progress_span_count or span_count,
             suppressed_count=suppressed_count,
         )
         write_run_log(os.path.join(out_dir, "run.log"), snapshot, {"status": status, "steps": step_timings})
@@ -250,6 +253,13 @@ def run_pipeline(
                 item = future.result()
                 with results_lock:
                     results.append(item)
+                _, skip_reason, chunk_spans, _, _, _ = item
+                if skip_reason:
+                    progress_chunk_skipped += 1
+                else:
+                    progress_chunk_processed += 1
+                    progress_span_count += len(chunk_spans)
+                write_snapshot("running")
             except Exception as exc:  # noqa: BLE001
                 errors.append(exc)
                 break
