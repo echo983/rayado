@@ -49,6 +49,8 @@
   2) 时间更贴近 overlap 中心
   3) 同置信度时保留右侧 chunk（时间靠后）
 - 输出：写 `GCL_OVERLAP`，必要时追加 `GCL_OVERRIDE policy=suppress/merge`。
+### 实现状态
+- 里程碑 2 已实现基础版本：时间 IoU + 文本 Jaccard，置信度低者被 suppress。
 
 ## 说话人 / 实体 / 场景的默认策略（可调整）
 - EntityBuild：

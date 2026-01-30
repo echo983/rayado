@@ -10,6 +10,7 @@ from .chunking import chunk_has_speech, generate_chunks
 from .ffmpeg_tools import ffprobe_duration, silencedetect
 from .gcl import append_block, ensure_header
 from .models import Chunk, Span
+from .overlap import overlap_judge
 from .render import render_srt, render_transcript
 from .utils import ensure_dir, hash_file
 from .vad import build_speech_segments
@@ -169,8 +170,26 @@ def run_pipeline(
                 },
             )
 
-    transcript = render_transcript(spans)
-    srt = render_srt(spans)
+    overlap_records, suppressed = overlap_judge(chunks, spans)
+    for record in overlap_records:
+        append_block(gcl_path, "GCL_OVERLAP", record)
+    for sid in suppressed:
+        append_block(
+            gcl_path,
+            "GCL_OVERRIDE",
+            {
+                "oid": f"SUP_{sid}",
+                "sid": sid,
+                "policy": "suppress",
+                "conf": "",
+            },
+        )
+
+    suppressed_set = set(suppressed)
+    spans_filtered = [span for span in spans if span.sid not in suppressed_set]
+
+    transcript = render_transcript(spans_filtered)
+    srt = render_srt(spans_filtered)
 
     with open(os.path.join(out_dir, "transcript.txt"), "w", encoding="utf-8") as f:
         f.write(transcript)
