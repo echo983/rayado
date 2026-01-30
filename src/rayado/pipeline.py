@@ -64,6 +64,8 @@ def _process_chunk(
                 return (chunk, "non_speech", [], {}, {}, [])
 
         input_hash = hash_file(wav_path)
+        with open(wav_path, "rb") as f:
+            audio_bytes = f.read()
         attempts = 0
         while True:
             try:
@@ -75,6 +77,7 @@ def _process_chunk(
                     params=params,
                     cache=cache,
                     span_start_id=span_start_id,
+                    audio_bytes=audio_bytes,
                 )
                 break
             except Exception:

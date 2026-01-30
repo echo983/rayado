@@ -25,6 +25,7 @@ def transcribe_chunk(
     params: dict,
     cache: Optional[Cache],
     span_start_id: int,
+    audio_bytes: Optional[bytes] = None,
 ) -> tuple[List[Span], Optional[dict]]:
     request_body = {
         "provider": provider,
@@ -82,13 +83,14 @@ def transcribe_chunk(
         smart_format = params.get("smart_format", False)
         punctuate = params.get("punctuate", True)
 
-        audio_bytes = extract_audio_segment(
-            input_path,
-            start=chunk.t0,
-            end=chunk.t1,
-            sample_rate=16000,
-            channels=1,
-        )
+        if audio_bytes is None:
+            audio_bytes = extract_audio_segment(
+                input_path,
+                start=chunk.t0,
+                end=chunk.t1,
+                sample_rate=16000,
+                channels=1,
+            )
         query = (
             f"model={model}"
             f"&diarize={'true' if diarize else 'false'}"
