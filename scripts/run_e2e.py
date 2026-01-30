@@ -33,7 +33,6 @@ def main() -> int:
         "5",
         "--overlap-sec",
         "0.5",
-        "--no-deepgram-diarize",
         "--deepgram-detect-language-set",
         "es",
     ]
