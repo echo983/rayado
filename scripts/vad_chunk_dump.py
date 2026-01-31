@@ -25,6 +25,18 @@ def main() -> None:
     parser.add_argument("--vad-min-silence-sec", type=float, default=0.5, help="Min silence length")
     parser.add_argument("--sample-rate", type=int, default=16000, help="Output sample rate")
     parser.add_argument("--channels", type=int, default=1, help="Output channel count")
+    parser.add_argument(
+        "--target-sec",
+        type=float,
+        default=0.0,
+        help="Target segment length in seconds (0 disables grouping)",
+    )
+    parser.add_argument(
+        "--max-sec",
+        type=float,
+        default=0.0,
+        help="Max segment length in seconds when grouping (0 disables cap)",
+    )
 
     args = parser.parse_args()
 
@@ -51,10 +63,30 @@ def main() -> None:
         merge_gap_sec=args.vad_merge_gap_sec,
     )
 
+    grouped: list[tuple[float, float]] = []
+    if args.target_sec and args.target_sec > 0:
+        max_sec = args.max_sec if args.max_sec and args.max_sec > 0 else args.target_sec * 2
+        cur_start = None
+        cur_end = None
+        for seg in speech_segments:
+            if cur_start is None:
+                cur_start = seg.start
+                cur_end = seg.end
+                continue
+            proposed_end = seg.end
+            if proposed_end - cur_start <= max_sec and (cur_end - cur_start) < args.target_sec:
+                cur_end = proposed_end
+            else:
+                grouped.append((cur_start, cur_end))
+                cur_start = seg.start
+                cur_end = seg.end
+        if cur_start is not None:
+            grouped.append((cur_start, cur_end))
+    else:
+        grouped = [(seg.start, seg.end) for seg in speech_segments]
+
     kept = 0
-    for seg in speech_segments:
-        start = seg.start
-        end = seg.end
+    for start, end in grouped:
         name = f"{prefix}_{start:.3f}.wav"
         out_path = os.path.join(out_dir, name)
         extract_audio_file_segment(
@@ -67,7 +99,7 @@ def main() -> None:
         )
         kept += 1
 
-    print(f"speech_segments={len(speech_segments)} kept={kept} out_dir={out_dir}")
+    print(f"speech_segments={len(speech_segments)} grouped={len(grouped)} kept={kept} out_dir={out_dir}")
 
 
 if __name__ == "__main__":
