@@ -26,10 +26,7 @@ try:
 except Exception:
     sb_fetching = None  # type: ignore[assignment]
 else:
-    try:
-        sb_fetching.LocalStrategy = "copy"  # type: ignore[assignment]
-    except Exception:
-        pass
+    # Leave LocalStrategy enum intact; we'll pass COPY explicitly later.
 
 
 def _load_classifier(cache_dir: str, device: str):
@@ -55,8 +52,8 @@ def _load_classifier(cache_dir: str, device: str):
         raise RuntimeError("torchaudio import failed")
 
     try:
-from speechbrain.inference.classifiers import EncoderClassifier
-from speechbrain.utils import fetching as sb_fetching
+        from speechbrain.inference.classifiers import EncoderClassifier
+        from speechbrain.utils import fetching as sb_fetching
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"speechbrain import failed: {exc}") from exc
 
