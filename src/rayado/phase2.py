@@ -19,7 +19,7 @@ def _write_text(path: str, content: str) -> None:
 def _openai_client():
     from openai import OpenAI
 
-    return OpenAI()
+    return OpenAI(timeout=60)
 
 
 def _response_text(resp) -> str:
