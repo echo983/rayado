@@ -32,6 +32,7 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - Test file: `docs/testfiles/test.webm` (not tracked; add your own)
 - Run: `python scripts/run_e2e.py` (uses smaller chunk size and disables diarization)
 - Debug Deepgram directly: `python scripts/debug_deepgram.py`
+- VAD chunk dump (speech-only WAVs): `python scripts/vad_chunk_dump.py "<input>" --target-sec 20 --max-sec 35`
 
 ## Status
 Milestone 1 in progress: end‑to‑end CLI + GCL + TXT/SRT output.
