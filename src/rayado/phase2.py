@@ -145,18 +145,16 @@ def run_phase2(
     if base_graph:
         input_payload = [
             {"role": "developer", "content": prompt_text},
-            {"role": "user", "content": f"[EXISTING_GRAPH]\n{base_graph}\n\n[NEW_SRT]\n{srt_text}"},
+            {"role": "user", "content": f"[S-ORAL_EXISTING]\n{base_graph}\n\n[NEW_SRT]\n{srt_text}"},
         ]
-        append_text = _call_openai(
+        graph_text = _call_openai(
             model=model_graph,
             input_payload=input_payload,
             output_path=graph_out_path,
-            output_prefix=base_graph.rstrip() + "\n\n",
             retry=retry,
         )
-        merged = base_graph.rstrip() + "\n\n" + append_text.strip() + "\n"
-        _write_text(graph_out_path, merged)
-        return merged
+        _write_text(graph_out_path, graph_text)
+        return graph_text
 
     input_payload = [
         {"role": "developer", "content": prompt_text},
