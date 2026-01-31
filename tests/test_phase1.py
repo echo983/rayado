@@ -24,7 +24,7 @@ def test_group_segments_merges_target_max():
         Segment(8.2, 12.0),
     ]
     grouped = phase1._group_segments(segments, target_sec=10.0, max_sec=12.0)
-    assert len(grouped) == 2
+    assert len(grouped) == 1
     assert grouped[0].start == 0.0
     assert grouped[0].end == 12.0
 
