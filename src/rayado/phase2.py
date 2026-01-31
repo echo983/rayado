@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import List, Optional
 
 
@@ -17,7 +18,7 @@ def _write_text(path: str, content: str) -> None:
 def _openai_client():
     from openai import OpenAI
 
-    return OpenAI(timeout=60)
+    return OpenAI(timeout=900)
 
 
 def _response_text(resp) -> str:
@@ -44,9 +45,12 @@ def _call_openai(
     *,
     model: str,
     input_payload,
+    output_path: Optional[str] = None,
+    output_prefix: str = "",
     prompt_cache_key: Optional[str] = None,
     prompt_cache_retention: Optional[str] = None,
     retry: int = 1,
+    flush_interval_sec: int = 10,
 ) -> str:
     cache_models = {
         "gpt-5.2",
@@ -74,13 +78,32 @@ def _call_openai(
             payload = {
                 "model": model,
                 "input": input_payload,
+                "stream": True,
+                "max_output_tokens": 128000,
             }
             if prompt_cache_key:
                 payload["prompt_cache_key"] = prompt_cache_key
             if prompt_cache_retention and _supports_retention(model):
                 payload["prompt_cache_retention"] = prompt_cache_retention
-            resp = client.responses.create(**payload)
-            return _response_text(resp)
+            stream = client.responses.create(**payload)
+            parts: List[str] = []
+            last_flush = time.time()
+            for event in stream:
+                event_type = getattr(event, "type", None)
+                if event_type == "response.output_text.delta":
+                    delta = getattr(event, "delta", "")
+                    if delta:
+                        parts.append(delta)
+                now = time.time()
+                if output_path and now - last_flush >= flush_interval_sec:
+                    _write_text(output_path, f"{output_prefix}{''.join(parts)}")
+                    last_flush = now
+                if event_type in {"response.completed", "response.failed"}:
+                    break
+            content = "".join(parts).strip()
+            if output_path:
+                _write_text(output_path, f"{output_prefix}{content}")
+            return content
         except Exception:
             attempts += 1
             if attempts > retry:
@@ -124,16 +147,26 @@ def run_phase2(
             {"role": "developer", "content": prompt_text},
             {"role": "user", "content": f"[EXISTING_GRAPH]\n{base_graph}\n\n[NEW_SRT]\n{srt_text}"},
         ]
-        append_text = _call_openai(model=model_graph, input_payload=input_payload, retry=retry)
+        append_text = _call_openai(
+            model=model_graph,
+            input_payload=input_payload,
+            output_path=graph_out_path,
+            output_prefix=base_graph.rstrip() + "\n\n",
+            retry=retry,
+        )
         merged = base_graph.rstrip() + "\n\n" + append_text.strip() + "\n"
         _write_text(graph_out_path, merged)
         return merged
 
-    graph_text = generate_object_graph(
-        srt_path=srt_path,
-        prompt_path=prompt_path,
+    input_payload = [
+        {"role": "developer", "content": prompt_text},
+        {"role": "user", "content": srt_text},
+    ]
+    graph_text = _call_openai(
         model=model_graph,
-        out_graph_path=graph_out_path,
+        input_payload=input_payload,
+        output_path=graph_out_path,
         retry=retry,
     )
+    _write_text(graph_out_path, graph_text)
     return graph_text

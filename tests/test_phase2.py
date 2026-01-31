@@ -15,7 +15,17 @@ def test_phase2_generate_graph_and_clean(monkeypatch, tmp_path):
     prompt_path = tmp_path / "SORAL.txt"
     prompt_path.write_text("PROMPT", encoding="utf-8")
 
-    def fake_call_openai(*, model, input_payload, prompt_cache_key=None, prompt_cache_retention=None, retry=1):
+    def fake_call_openai(
+        *,
+        model,
+        input_payload,
+        output_path=None,
+        output_prefix="",
+        prompt_cache_key=None,
+        prompt_cache_retention=None,
+        retry=1,
+        flush_interval_sec=10,
+    ):
         if model == "gpt-5.2":
             return "[ENTITY:1]{Name:\"A\"}"
         return ""

@@ -10,25 +10,35 @@ def _read_text(path: str) -> str:
         return f.read()
 
 
-def _call_openai(model: str, input_payload):
+def _call_openai(model: str, input_payload, output_path: str):
     from openai import OpenAI
 
-    client = OpenAI()
-    resp = client.responses.create(
+    client = OpenAI(timeout=900)
+    stream = client.responses.create(
         model=model,
         input=input_payload,
+        stream=True,
+        max_output_tokens=128000,
     )
-    if hasattr(resp, "output_text"):
-        return resp.output_text or ""
-    output = getattr(resp, "output", None) or []
-    parts = []
-    for item in output:
-        if item.get("type") != "message":
-            continue
-        for content in item.get("content", []):
-            if content.get("type") == "output_text":
-                parts.append(content.get("text", ""))
-    return "\n".join(parts).strip()
+    parts: list[str] = []
+    last_flush = time.time()
+    for event in stream:
+        event_type = getattr(event, "type", None)
+        if event_type == "response.output_text.delta":
+            delta = getattr(event, "delta", "")
+            if delta:
+                parts.append(delta)
+        now = time.time()
+        if now - last_flush >= 10:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write("".join(parts))
+            last_flush = now
+        if event_type in {"response.completed", "response.failed"}:
+            break
+    content = "".join(parts).strip()
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return content
 
 
 def main() -> None:
@@ -51,14 +61,12 @@ def main() -> None:
     ]
 
     start = time.time()
-    output = _call_openai(args.model, input_payload)
+    out_path = os.path.join("out", "phase2_probe.graph.txt")
+    output = _call_openai(args.model, input_payload, out_path)
     elapsed = time.time() - start
 
     print(f"elapsed_sec={elapsed:.2f}")
     print(f"output_chars={len(output)}")
-    out_path = os.path.join("out", "phase2_probe.graph.txt")
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(output)
     print(f"output_path={out_path}")
 
 

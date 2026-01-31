@@ -26,7 +26,7 @@ rayado phase2 <srt>
 - `--prompt <path>` SORAL 提示词路径（默认 `prompts/SORAL.txt`）
 - `--graph-in <path>` 外部对象图文件（可选）
 - `--graph-out <path>` 输出对象图文件（默认 `./out/<base>.graph.txt`）
-- `--model-graph <name>` GPT-5.2（对象图）
+- `--model-graph <name>` GPT-5.1（对象图）
 - `--retry <n>` 默认 1（硬上限 1）
 
 ## 输出

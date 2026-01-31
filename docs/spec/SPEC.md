@@ -25,7 +25,7 @@
 
 ### Phase 2 — Logic Modeling
 1) 加载 `prompts/SORAL.txt`。
-2) 将 Phase 1 SRT 直接喂给 GPT‑5.2，输出对象关系图 `.txt`。
+2) 将 Phase 1 SRT 直接喂给 GPT‑5.1，输出对象关系图 `.txt`。
 3) 载入对象图（支持外部文件，便于跨集复用）。
 4) 如果提供外部对象图：将其作为“已存在图”，本次输出为追加内容；合并后生成新的图文件。
 
@@ -41,7 +41,9 @@
 - 得出单一主语言，后续 ASR 固定该语言。
 
 ## OpenAI 调用规则
-- 统一使用 Responses API。
+- 统一使用 Responses API（streaming）。
+- `max_output_tokens=128000`。
+- `timeout=15min`。
 
 ## 输出
 - Phase 1：`out/<base>.srt`
