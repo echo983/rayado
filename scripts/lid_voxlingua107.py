@@ -8,7 +8,24 @@ import sys
 from typing import Dict, List, Tuple
 
 import torch
-from speechbrain.inference.classifiers import EncoderClassifier
+
+
+def _load_classifier(cache_dir: str, device: str):
+    try:
+        import torchaudio  # noqa: F401
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"torchaudio import failed: {exc}") from exc
+
+    try:
+        from speechbrain.inference.classifiers import EncoderClassifier
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"speechbrain import failed: {exc}") from exc
+
+    return EncoderClassifier.from_hparams(
+        source="speechbrain/lang-id-voxlingua107-ecapa",
+        savedir=cache_dir,
+        run_opts={"device": device},
+    )
 
 
 def _list_chunks(dir_path: str) -> List[str]:
@@ -84,11 +101,17 @@ def main() -> None:
         print("No wav chunks found.", file=sys.stderr)
         sys.exit(2)
 
-    classifier = EncoderClassifier.from_hparams(
-        source="speechbrain/lang-id-voxlingua107-ecapa",
-        savedir=args.cache_dir,
-        run_opts={"device": args.device},
-    )
+    try:
+        classifier = _load_classifier(args.cache_dir, args.device)
+    except RuntimeError as exc:
+        print(
+            "Failed to load SpeechBrain/TorchAudio. "
+            "Install compatible torch/torchaudio for your Python version. "
+            "Example (CPU): pip install --upgrade torch torchaudio",
+            file=sys.stderr,
+        )
+        print(str(exc), file=sys.stderr)
+        sys.exit(3)
 
     votes: Dict[str, int] = {}
     weights: Dict[str, float] = {}
