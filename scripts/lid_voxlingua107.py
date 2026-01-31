@@ -114,6 +114,9 @@ def main() -> None:
     parser.add_argument("--device", default="cpu", help="Torch device (cpu/cuda)")
     args = parser.parse_args()
 
+    # Avoid symlink creation on Windows without elevated privileges.
+    os.environ.setdefault("SPEECHBRAIN_LOCAL_STRATEGY", "copy")
+
     chunk_dir = args.chunk_dir
     if not os.path.isdir(chunk_dir):
         print(f"Chunk dir not found: {chunk_dir}", file=sys.stderr)
