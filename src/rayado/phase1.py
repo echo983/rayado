@@ -203,6 +203,7 @@ def run_phase1(
     max_sec: float,
     lid_cache_dir: str,
     lid_device: str,
+    output_txt_only: bool = False,
 ) -> str:
     ensure_dir(os.path.dirname(out_srt_path))
     cache = Cache(os.path.join(cache_dir, "cache.sqlite"))
@@ -326,8 +327,17 @@ def run_phase1(
                     )
                     span_id += 1
 
-    srt = render_srt(spans)
-    with open(out_srt_path, "w", encoding="utf-8") as f:
-        f.write(srt)
+    if output_txt_only:
+        lines: List[str] = []
+        for span in sorted(spans, key=lambda s: (s.t0, s.t1, s.sid)):
+            text = span.text_raw.strip()
+            if text:
+                lines.append(text)
+        with open(out_srt_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + ("\n" if lines else ""))
+    else:
+        srt = render_srt(spans)
+        with open(out_srt_path, "w", encoding="utf-8") as f:
+            f.write(srt)
 
     return detected_language

@@ -21,6 +21,7 @@ rayado phase2 <srt>
 - `--max-sec <n>` 最大分段长度（默认 35）
 - `--lid-cache-dir <path>` VoxLingua107 缓存目录
 - `--lid-device <cpu|cuda>` LID 推理设备
+- `--txt-only/--no-txt-only` 仅输出纯文本（按 VAD 分段换行）
 
 ## Phase 2 参数（逻辑建模）
 - `--prompt <path>` SORAL 提示词路径（默认 `prompts/SORAL.txt`）

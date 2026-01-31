@@ -63,6 +63,12 @@ def main() -> None:
         help="SpeechBrain model cache directory",
     )
     p1.add_argument("--lid-device", default="cpu", help="LID device (cpu/cuda)")
+    p1.add_argument(
+        "--txt-only",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Output plain text only (VAD-separated lines)",
+    )
 
     p2 = subparsers.add_parser("phase2", help="Logic modeling phase (SRT -> graph -> cleaned SRT)")
     p2.add_argument("srt", help="Input SRT path")
@@ -112,6 +118,7 @@ def main() -> None:
             max_sec=args.max_sec,
             lid_cache_dir=args.lid_cache_dir,
             lid_device=args.lid_device,
+            output_txt_only=args.txt_only,
         )
         print(f"Language={detected} Output={out_srt_path}")
 

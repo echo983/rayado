@@ -21,7 +21,7 @@
    - `target-sec=20`，`max-sec=35`
 3) **LID**：VoxLingua107（SpeechBrain）对 5 个采样段投票确定主语言。
 4) **ASR**：使用确定语言并行调用 Deepgram（Nova‑2），每段仅重试一次。
-5) **Render**：生成标准 SRT（仅这一份输出文件）。
+5) **Render**：默认生成标准 SRT；可选 `--txt-only` 输出纯文本（按 VAD 分段换行）。
 
 ### Phase 2 — Logic Modeling
 1) 加载 `prompts/SORAL.txt`。
