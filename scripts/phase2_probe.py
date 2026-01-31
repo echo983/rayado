@@ -4,8 +4,6 @@ import argparse
 import os
 import time
 
-from rayado.srt_utils import chunk_srt_blocks, format_srt_blocks, parse_srt_blocks
-
 
 def _read_text(path: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
@@ -34,48 +32,31 @@ def _call_openai(model: str, input_payload):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Probe a single Phase2 chunk with GPT-5-mini")
+    parser = argparse.ArgumentParser(description="Probe object-graph generation only")
     parser.add_argument("srt", help="Input SRT path")
-    parser.add_argument("--graph-in", required=True, help="Object graph file")
-    parser.add_argument("--chunk-chars", type=int, default=12000, help="Chunk size in chars")
-    parser.add_argument("--chunk-index", type=int, default=1, help="1-based chunk index")
-    parser.add_argument("--model", default="gpt-5-mini", help="Model name")
+    parser.add_argument("--graph-in", default=None, help="Existing object graph file")
+    parser.add_argument("--model", default="gpt-5.2", help="Model name")
     args = parser.parse_args()
 
     srt_text = _read_text(args.srt)
-    graph_text = _read_text(args.graph_in)
-    blocks = parse_srt_blocks(srt_text)
-    chunks = chunk_srt_blocks(blocks, max_chars=args.chunk_chars)
-
-    if not chunks:
-        raise SystemExit("No chunks found")
-    if args.chunk_index < 1 or args.chunk_index > len(chunks):
-        raise SystemExit(f"chunk-index out of range (1..{len(chunks)})")
-
-    chunk = chunks[args.chunk_index - 1]
-    chunk_text = format_srt_blocks(chunk)
-
-    prompt = (
-        "You will clean and normalize SRT text for LLM consumption.\n"
-        "Rules:\n"
-        "- Output SRT only, no extra commentary.\n"
-        "- Keep timestamps unchanged unless they are obviously invalid.\n"
-        "- Preserve language (no translation).\n"
-        "- Keep lines concise and readable.\n"
-        f"\n[OBJECT_GRAPH]\n{graph_text}\n"
-    )
+    base_graph = _read_text(args.graph_in) if args.graph_in else ""
+    prompt = _read_text(os.path.join("prompts", "SORAL.txt"))
+    if base_graph:
+        user_content = f"[EXISTING_GRAPH]\n{base_graph}\n\n[NEW_SRT]\n{srt_text}"
+    else:
+        user_content = srt_text
     input_payload = [
         {"role": "developer", "content": prompt},
-        {"role": "user", "content": chunk_text},
+        {"role": "user", "content": user_content},
     ]
 
     start = time.time()
     output = _call_openai(args.model, input_payload)
     elapsed = time.time() - start
 
-    print(f"chunk_index={args.chunk_index} chunks={len(chunks)} elapsed_sec={elapsed:.2f}")
+    print(f"elapsed_sec={elapsed:.2f}")
     print(f"output_chars={len(output)}")
-    out_path = os.path.join("out", "phase2_probe.srt")
+    out_path = os.path.join("out", "phase2_probe.graph.txt")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(output)
     print(f"output_path={out_path}")

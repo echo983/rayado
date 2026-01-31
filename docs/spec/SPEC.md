@@ -27,7 +27,7 @@
 1) 加载 `prompts/SORAL.txt`。
 2) 将 Phase 1 SRT 直接喂给 GPT‑5.2，输出对象关系图 `.txt`。
 3) 载入对象图（支持外部文件，便于跨集复用）。
-4) 使用 GPT‑5‑mini 按约 4K tokens 分段重建清洗 SRT（缓存开启）。
+4) 如果提供外部对象图：将其作为“已存在图”，本次输出为追加内容；合并后生成新的图文件。
 
 ## VAD 与切片规则
 - 基于 `silencedetect` 生成静音区间，反推出语音段。
@@ -42,11 +42,7 @@
 
 ## OpenAI 调用规则
 - 统一使用 Responses API。
-- Phase 2 重建 SRT 时启用 Prompt Caching：
-  - 静态内容前置（提示词 + 对象图）
-  - `prompt_cache_key` 使用 chunk 前缀
-  - `prompt_cache_retention=24h`
 
 ## 输出
 - Phase 1：`out/<base>.srt`
-- Phase 2：`out/<base>.graph.txt`、`out/<base>.clean.srt`
+- Phase 2：`out/<base>.graph.txt`

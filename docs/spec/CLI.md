@@ -26,15 +26,9 @@ rayado phase2 <srt>
 - `--prompt <path>` SORAL 提示词路径（默认 `prompts/SORAL.txt`）
 - `--graph-in <path>` 外部对象图文件（可选）
 - `--graph-out <path>` 输出对象图文件（默认 `./out/<base>.graph.txt`）
-- `--out <path>` 输出清洗 SRT（默认 `./out/<base>.clean.srt`）
 - `--model-graph <name>` GPT-5.2（对象图）
-- `--model-clean <name>` GPT-5-mini（重建 SRT）
-- `--chunk-chars <n>` 约 4K tokens 的字符上限（默认 12000）
-- `--prompt-cache-retention <in_memory|24h>` 默认 `24h`
 - `--retry <n>` 默认 1（硬上限 1）
-- `--start-chunk <n>` 从第 n 段开始处理（默认 1）
-- `--max-chunks <n>` 仅处理 n 段（用于局部重跑）
 
 ## 输出
 - Phase 1：`out/<base>.srt`
-- Phase 2：`out/<base>.graph.txt`、`out/<base>.clean.srt`
+- Phase 2：`out/<base>.graph.txt`

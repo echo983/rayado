@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Iterable, List, Optional
-
-from .srt_utils import SrtBlock, chunk_srt_blocks, format_srt_blocks, parse_srt_blocks
+from typing import List, Optional
 
 
 def _read_text(path: str) -> str:
@@ -89,10 +87,6 @@ def _call_openai(
                 raise
 
 
-def _chunk_prefix(index: int) -> str:
-    return f"C{index:05d}"
-
-
 def generate_object_graph(
     *,
     srt_path: str,
@@ -112,95 +106,34 @@ def generate_object_graph(
     return graph_text
 
 
-def rebuild_srt(
-    *,
-    srt_path: str,
-    graph_text: str,
-    out_srt_path: str,
-    model: str,
-    chunk_chars: int,
-    prompt_cache_retention: str,
-    retry: int,
-    start_chunk: int = 1,
-    max_chunks: Optional[int] = None,
-) -> None:
-    blocks = parse_srt_blocks(_read_text(srt_path))
-    srt_chunks = chunk_srt_blocks(blocks, max_chars=chunk_chars)
-
-    base_prompt = (
-        "You will clean and normalize SRT text for LLM consumption.\n"
-        "Rules:\n"
-        "- Output SRT only, no extra commentary.\n"
-        "- Keep timestamps unchanged unless they are obviously invalid.\n"
-        "- Preserve language (no translation).\n"
-        "- Keep lines concise and readable.\n"
-    )
-    static_context = f"{base_prompt}\n[OBJECT_GRAPH]\n{graph_text}\n"
-
-    rebuilt_blocks: List[SrtBlock] = []
-    total_chunks = len(srt_chunks)
-    end_chunk = start_chunk + max_chunks - 1 if max_chunks else total_chunks
-    for idx, chunk in enumerate(srt_chunks, start=1):
-        if idx < start_chunk or idx > end_chunk:
-            rebuilt_blocks.extend(chunk)
-            continue
-        print(f"clean_chunk {idx}/{total_chunks}")
-        chunk_text = format_srt_blocks(chunk)
-        input_payload = [
-            {"role": "developer", "content": static_context},
-            {"role": "user", "content": chunk_text},
-        ]
-        output = _call_openai(
-            model=model,
-            input_payload=input_payload,
-            prompt_cache_key=_chunk_prefix(idx),
-            prompt_cache_retention=prompt_cache_retention,
-            retry=retry,
-        )
-        parsed = parse_srt_blocks(output)
-        if not parsed:
-            parsed = chunk
-        rebuilt_blocks.extend(parsed)
-        _write_text(out_srt_path, format_srt_blocks(rebuilt_blocks))
-
-    _write_text(out_srt_path, format_srt_blocks(rebuilt_blocks))
-
-
 def run_phase2(
     *,
     srt_path: str,
     prompt_path: str,
     graph_in_path: Optional[str],
     graph_out_path: str,
-    cleaned_srt_path: str,
     model_graph: str,
-    model_clean: str,
-    chunk_chars: int,
-    prompt_cache_retention: str,
     retry: int,
-    start_chunk: int,
-    max_chunks: Optional[int],
 ) -> str:
-    if graph_in_path:
-        graph_text = _read_text(graph_in_path)
-    else:
-        graph_text = generate_object_graph(
-            srt_path=srt_path,
-            prompt_path=prompt_path,
-            model=model_graph,
-            out_graph_path=graph_out_path,
-            retry=retry,
-        )
+    base_graph = _read_text(graph_in_path) if graph_in_path else ""
+    prompt_text = _read_text(prompt_path)
+    srt_text = _read_text(srt_path)
 
-    rebuild_srt(
+    if base_graph:
+        input_payload = [
+            {"role": "developer", "content": prompt_text},
+            {"role": "user", "content": f"[EXISTING_GRAPH]\n{base_graph}\n\n[NEW_SRT]\n{srt_text}"},
+        ]
+        append_text = _call_openai(model=model_graph, input_payload=input_payload, retry=retry)
+        merged = base_graph.rstrip() + "\n\n" + append_text.strip() + "\n"
+        _write_text(graph_out_path, merged)
+        return merged
+
+    graph_text = generate_object_graph(
         srt_path=srt_path,
-        graph_text=graph_text,
-        out_srt_path=cleaned_srt_path,
-        model=model_clean,
-        chunk_chars=chunk_chars,
-        prompt_cache_retention=prompt_cache_retention,
+        prompt_path=prompt_path,
+        model=model_graph,
+        out_graph_path=graph_out_path,
         retry=retry,
-        start_chunk=start_chunk,
-        max_chunks=max_chunks,
     )
     return graph_text

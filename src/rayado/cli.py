@@ -62,14 +62,8 @@ def main() -> None:
     p2.add_argument("--prompt", default=os.path.join("prompts", "SORAL.txt"), help="Prompt file path")
     p2.add_argument("--graph-in", default=None, help="External object graph file")
     p2.add_argument("--graph-out", default=None, help="Output object graph file")
-    p2.add_argument("--out", dest="out_srt", default=None, help="Output cleaned SRT path")
     p2.add_argument("--model-graph", default="gpt-5.2", help="Model for object graph")
-    p2.add_argument("--model-clean", default="gpt-5-mini", help="Model for SRT rebuild")
-    p2.add_argument("--chunk-chars", type=int, default=12000, help="Approx chunk size in chars")
-    p2.add_argument("--prompt-cache-retention", default="24h", help="Prompt cache retention")
     p2.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
-    p2.add_argument("--start-chunk", type=int, default=1, help="Start chunk index (1-based)")
-    p2.add_argument("--max-chunks", type=int, default=None, help="Max chunks to process")
 
     args = parser.parse_args(argv)
 
@@ -116,25 +110,17 @@ def main() -> None:
             args.retry = 1
 
         graph_out = args.graph_out or _default_graph_path(srt_path)
-        out_clean = args.out_srt or _default_clean_srt_path(srt_path)
         ensure_dir(os.path.dirname(graph_out))
-        ensure_dir(os.path.dirname(out_clean))
 
         run_phase2(
             srt_path=srt_path,
             prompt_path=args.prompt,
             graph_in_path=args.graph_in,
             graph_out_path=graph_out,
-            cleaned_srt_path=out_clean,
             model_graph=args.model_graph,
-            model_clean=args.model_clean,
-            chunk_chars=args.chunk_chars,
-            prompt_cache_retention=args.prompt_cache_retention,
             retry=args.retry,
-            start_chunk=args.start_chunk,
-            max_chunks=args.max_chunks,
         )
-        print(f"Output={out_clean}")
+        print(f"Output={graph_out}")
 
 
 if __name__ == "__main__":

@@ -29,11 +29,7 @@ This branch refactors the pipeline into two explicit phases:
 3. Load the object graph file.
    - Allow loading an external object graph via parameter.
    - Example: when processing Episode 2, reuse Episode 1 graph as context.
-4. Rebuild a cleaned SRT using **GPT-5-mini**.
-   - Segment size: ~4K tokens per request.
-   - Prompt caching enabled.
-   - `prompt_cache_key` = chunk prefix.
-   - Retry once on failure.
+4. Output the merged object graph as the final Phase 2 artifact.
 
 ## OpenAI API Notes (Per References)
 - Use **Responses API** for both GPT-5.2 and GPT-5-mini calls.

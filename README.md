@@ -26,10 +26,9 @@ High‑throughput CLI transcription pipeline for episodic media. The system is o
 - Set OpenAI key: `setx OPENAI_API_KEY "<your_key>"`
 - Phase 1 (audio -> SRT only): `rayado phase1 <input>`
   - Output: `out/<base>.srt`
-- Phase 2 (SRT -> graph -> cleaned SRT): `rayado phase2 <srt>`
-  - Output: `out/<base>.graph.txt`, `out/<base>.clean.srt`
+- Phase 2 (SRT -> object graph): `rayado phase2 <srt>`
+  - Output: `out/<base>.graph.txt`
   - Optional external graph: `--graph-in <path>`
-  - Resume clean only: `--start-chunk <n> --max-chunks <n>`
 
 ## E2E Test
 - Test file: `docs/testfiles/test.webm` (not tracked; add your own)
