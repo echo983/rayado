@@ -20,30 +20,16 @@ else:
     if not hasattr(torchaudio, "set_audio_backend"):
         torchaudio.set_audio_backend = lambda _backend: None  # type: ignore[attr-defined]
 
-# Patch SpeechBrain to avoid symlink strategy on Windows.
+# Force SpeechBrain local strategy to "copy" at import time.
 try:
-    from speechbrain.utils import fetching as sb_fetching
+    import speechbrain.utils.fetching as sb_fetching
 except Exception:
     sb_fetching = None  # type: ignore[assignment]
 else:
-    if hasattr(sb_fetching, "fetch"):
-        _orig_fetch = sb_fetching.fetch
-
-        def _fetch_copy(*args, **kwargs):
-            if "local_strategy" not in kwargs or kwargs.get("local_strategy") in {None, "symlink"}:
-                kwargs["local_strategy"] = "copy"
-            return _orig_fetch(*args, **kwargs)
-
-        sb_fetching.fetch = _fetch_copy  # type: ignore[assignment]
-    if hasattr(sb_fetching, "link_with_strategy"):
-        _orig_link = sb_fetching.link_with_strategy
-
-        def _link_with_strategy_copy(src, dst, local_strategy):  # type: ignore[no-untyped-def]
-            if local_strategy in {None, "symlink"}:
-                local_strategy = "copy"
-            return _orig_link(src, dst, local_strategy)
-
-        sb_fetching.link_with_strategy = _link_with_strategy_copy  # type: ignore[assignment]
+    try:
+        sb_fetching.LocalStrategy = "copy"  # type: ignore[assignment]
+    except Exception:
+        pass
 
 
 def _load_classifier(cache_dir: str, device: str):
@@ -69,7 +55,8 @@ def _load_classifier(cache_dir: str, device: str):
         raise RuntimeError("torchaudio import failed")
 
     try:
-        from speechbrain.inference.classifiers import EncoderClassifier
+from speechbrain.inference.classifiers import EncoderClassifier
+from speechbrain.utils import fetching as sb_fetching
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"speechbrain import failed: {exc}") from exc
 
@@ -77,6 +64,7 @@ def _load_classifier(cache_dir: str, device: str):
         source="speechbrain/lang-id-voxlingua107-ecapa",
         savedir=cache_dir,
         run_opts={"device": device},
+        local_strategy=sb_fetching.LocalStrategy.COPY,
     )
 
 
