@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional
 
@@ -290,8 +291,10 @@ def run_phase1(
                     audio_bytes=audio_bytes,
                 )
                 break
-            except Exception:
+            except Exception as exc:
                 attempts += 1
+                if "429" in str(exc):
+                    time.sleep(5)
                 if attempts > retry:
                     raise
 
