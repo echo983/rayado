@@ -26,7 +26,7 @@ rayado phase2 <srt>
 - `--prompt <path>` SORAL 提示词路径（默认 `prompts/SORAL.txt`）
 - `--graph-in <path>` 外部对象图文件（可选）
 - `--graph-out <path>` 输出对象图文件（默认 `./out/<base>.graph.txt`）
-- `--model-graph <name>` GPT-5.1（对象图）
+- `--model-graph <name>` 默认 `gpt-5-mini`（对象图）
 - `--retry <n>` 默认 1（硬上限 1）
 
 ## Phase 3 参数（合并对象图）
@@ -34,7 +34,7 @@ rayado phase2 <srt>
 - `--graph-b <path>` 对象图 B
 - `--prompt <path>` 合并提示词路径（默认 `prompts/SORAL_Merge.txt`）
 - `--out <path>` 输出合并对象图（默认 `./out/<baseA>__<baseB>.merged.graph.txt`）
-- `--model <name>` GPT-5.1（合并模型）
+- `--model <name>` 默认 `gpt-5-mini`（合并模型）
 - `--retry <n>` 默认 1（硬上限 1）
 
 ## 输出

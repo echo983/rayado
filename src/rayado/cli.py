@@ -69,7 +69,7 @@ def main() -> None:
     p2.add_argument("--prompt", default=os.path.join("prompts", "SORAL.txt"), help="Prompt file path")
     p2.add_argument("--graph-in", default=None, help="External object graph file")
     p2.add_argument("--graph-out", default=None, help="Output object graph file")
-    p2.add_argument("--model-graph", default="gpt-5.1", help="Model for object graph")
+    p2.add_argument("--model-graph", default="gpt-5-mini", help="Model for object graph")
     p2.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
 
     p3 = subparsers.add_parser("phase3", help="Merge two S-ORAL graphs")
@@ -77,7 +77,7 @@ def main() -> None:
     p3.add_argument("--graph-b", required=True, help="Input graph B")
     p3.add_argument("--prompt", default=os.path.join("prompts", "SORAL_Merge.txt"), help="Merge prompt path")
     p3.add_argument("--out", dest="graph_out", default=None, help="Output merged graph file")
-    p3.add_argument("--model", default="gpt-5.1", help="Model for merge")
+    p3.add_argument("--model", default="gpt-5-mini", help="Model for merge")
     p3.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
 
     args = parser.parse_args(argv)

@@ -25,14 +25,14 @@
 
 ### Phase 2 — Logic Modeling
 1) 加载 `prompts/SORAL.txt`。
-2) 将 Phase 1 SRT 直接喂给 GPT‑5.1，输出对象关系图 `.txt`。
+2) 将 Phase 1 SRT 直接喂给 GPT‑5‑mini（默认，可配置），输出对象关系图 `.txt`。
 3) 载入对象图（支持外部文件，便于跨集复用）。
 4) 如果提供外部对象图：将其作为“已存在图”，本次输出为追加内容；合并后生成新的图文件。
 
 ### Phase 3 — Graph Merge
 1) 加载 `prompts/SORAL_Merge.txt`。
 2) 输入两份 S-ORAL v3.1 对象图（A/B）。
-3) GPT‑5.1 输出合并重构后的单一对象图（`.merged.graph.txt`）。
+3) GPT‑5‑mini 输出合并重构后的单一对象图（`.merged.graph.txt`，可配置模型）。
 
 ## VAD 与切片规则
 - 基于 `silencedetect` 生成静音区间，反推出语音段。
