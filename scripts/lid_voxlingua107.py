@@ -9,6 +9,17 @@ from typing import Dict, List, Tuple
 
 import torch
 
+# Patch torchaudio backend helpers before SpeechBrain import.
+try:
+    import torchaudio
+except Exception:
+    torchaudio = None  # type: ignore[assignment]
+else:
+    if not hasattr(torchaudio, "list_audio_backends"):
+        torchaudio.list_audio_backends = lambda: ["soundfile"]  # type: ignore[attr-defined]
+    if not hasattr(torchaudio, "set_audio_backend"):
+        torchaudio.set_audio_backend = lambda _backend: None  # type: ignore[attr-defined]
+
 
 def _load_classifier(cache_dir: str, device: str):
     try:
@@ -29,16 +40,8 @@ def _load_classifier(cache_dir: str, device: str):
 
         huggingface_hub.hf_hub_download = _hf_hub_download_compat  # type: ignore[assignment]
 
-    try:
-        import torchaudio
-    except Exception as exc:  # noqa: BLE001
-        raise RuntimeError(f"torchaudio import failed: {exc}") from exc
-
-    # Shim for newer Python builds where torchaudio may miss backend helpers.
-    if not hasattr(torchaudio, "list_audio_backends"):
-        torchaudio.list_audio_backends = lambda: ["soundfile"]  # type: ignore[attr-defined]
-    if not hasattr(torchaudio, "set_audio_backend"):
-        torchaudio.set_audio_backend = lambda _backend: None  # type: ignore[attr-defined]
+    if torchaudio is None:
+        raise RuntimeError("torchaudio import failed")
 
     try:
         from speechbrain.inference.classifiers import EncoderClassifier
