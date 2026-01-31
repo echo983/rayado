@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_FILE = ROOT / "docs" / "testfiles" / "test.webm"
-OUT_DIR = ROOT / "out" / "test"
+OUT_SRT = ROOT / "out" / "test.srt"
 
 
 def main() -> int:
@@ -25,35 +25,23 @@ def main() -> int:
         sys.executable,
         "-m",
         "rayado",
-        "transcribe",
+        "phase1",
         str(TEST_FILE),
         "--out",
-        str(OUT_DIR),
-        "--chunk-sec",
-        "5",
-        "--overlap-sec",
-        "0.5",
+        str(OUT_SRT),
+        "--target-sec",
+        "10",
+        "--max-sec",
+        "20",
     ]
     proc = subprocess.run(cmd, cwd=str(ROOT))
     if proc.returncode != 0:
         print(f"Transcription failed with code {proc.returncode}", file=sys.stderr)
         return proc.returncode
 
-    gcl = OUT_DIR / "episode.gcl"
-    txt = OUT_DIR / "transcript.txt"
-    srt = OUT_DIR / "subtitles.srt"
-
-    if not gcl.exists() or gcl.stat().st_size == 0:
-        print(f"Missing or empty output: {gcl}", file=sys.stderr)
+    if not OUT_SRT.exists() or OUT_SRT.stat().st_size == 0:
+        print(f"Missing or empty output: {OUT_SRT}", file=sys.stderr)
         return 4
-    for path in (txt, srt):
-        if not path.exists():
-            print(f"Missing output: {path}", file=sys.stderr)
-            return 4
-
-    gcl_text = gcl.read_text(encoding="utf-8", errors="ignore")
-    if "GCL_SPAN" not in gcl_text:
-        print("Warning: no GCL_SPAN entries found", file=sys.stderr)
 
     print("E2E test passed")
     return 0

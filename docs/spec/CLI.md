@@ -1,32 +1,38 @@
-﻿# CLI 约定（MVP）
+# CLI 约定（重构）
 
 ## 命令
 ```
-rayado transcribe <input>
+rayado phase1 <input>
+rayado phase2 <srt>
 ```
 
-## 参数
-- `--out <dir>` 输出目录（默认 `./out/<basename>`）
+## Phase 1 参数（转写）
+- `--out <path>` 输出 SRT（默认 `./out/<basename>.srt`）
 - `--concurrency <n>` 并发（默认 64）
-- `--chunk-sec <n>` 默认 120
-- `--overlap-sec <n>` 默认 1.5
 - `--retry <n>` 默认 1（硬上限 1）
-- `--asr-provider <name>` 服务商标识
-- `--cache-dir <path>` 单机提示词缓存目录
 - `--deepgram-model <name>` Deepgram 模型（默认 `nova-2`）
-- `--deepgram-detect-language/--no-deepgram-detect-language` 是否启用语言检测（默认开）
-- `--deepgram-detect-language-set <code>` 限制可检测语言（可重复）
-- `--deepgram-language <code>` 语言提示（仅作为兜底）
-- `--deepgram-diarize/--no-deepgram-diarize` 是否启用说话人分离（默认关）
-- `--deepgram-smart-format/--no-deepgram-smart-format` 是否启用 Smart Format
-- `--deepgram-punctuate/--no-deepgram-punctuate` 是否启用标点
-- `--vad <name>` VAD 实现标识（默认启用）
-- `--vad-threshold <n>` VAD 阈值（默认保守，偏向跳过）
+- `--cache-dir <path>` 缓存目录（默认 `./.cache/rayado`）
+- `--vad-threshold <n>` VAD 阈值（默认 -30）
 - `--vad-min-speech-sec <n>` 最短语音段阈值
 - `--vad-merge-gap-sec <n>` 静音合并阈值
 - `--vad-pad-sec <n>` 语音段前后扩展时间
+- `--vad-min-silence-sec <n>` 最短静音阈值
+- `--target-sec <n>` 目标分段长度（默认 20）
+- `--max-sec <n>` 最大分段长度（默认 35）
+- `--lid-cache-dir <path>` VoxLingua107 缓存目录
+- `--lid-device <cpu|cuda>` LID 推理设备
+
+## Phase 2 参数（逻辑建模）
+- `--prompt <path>` SORAL 提示词路径（默认 `prompts/SORAL.txt`）
+- `--graph-in <path>` 外部对象图文件（可选）
+- `--graph-out <path>` 输出对象图文件（默认 `./out/<base>.graph.txt`）
+- `--out <path>` 输出清洗 SRT（默认 `./out/<base>.clean.srt`）
+- `--model-graph <name>` GPT-5.2（对象图）
+- `--model-clean <name>` GPT-5-mini（重建 SRT）
+- `--chunk-chars <n>` 约 4K tokens 的字符上限（默认 12000）
+- `--prompt-cache-retention <in_memory|24h>` 默认 `24h`
+- `--retry <n>` 默认 1（硬上限 1）
 
 ## 输出
-- `episode.gcl`
-- `transcript.txt`
-- `subtitles.srt`
+- Phase 1：`out/<base>.srt`
+- Phase 2：`out/<base>.graph.txt`、`out/<base>.clean.srt`

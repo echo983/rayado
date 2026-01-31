@@ -120,3 +120,29 @@ def extract_audio_file_segment(
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.decode(errors="ignore") or "ffmpeg extract file failed")
+
+
+def extract_audio_file(
+    input_path: str,
+    output_path: str,
+    *,
+    sample_rate: int = 16000,
+    channels: int = 1,
+) -> None:
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-vn",
+        "-ar",
+        str(sample_rate),
+        "-ac",
+        str(channels),
+        "-f",
+        "wav",
+        output_path,
+    ]
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.decode(errors="ignore") or "ffmpeg extract audio failed")

@@ -1,6 +1,6 @@
 ﻿# Rayado
 
-High‑throughput, append‑only CLI transcription pipeline for episodic media. The system is optimized for LLM consumption, cache efficiency, and replayable logs with minimal manual intervention.
+High‑throughput CLI transcription pipeline for episodic media. The system is optimized for LLM consumption, cache efficiency, and replayable logs with minimal manual intervention.
 
 ## Goals
 - LLM‑friendly outputs with stable, replayable structure
@@ -20,13 +20,14 @@ High‑throughput, append‑only CLI transcription pipeline for episodic media. 
 - `docs/spec/CACHE_SCHEMA.md` cache storage schema
 - `docs/spec/CLI.md` CLI contract
 
-## MVP Usage
+## Usage (Refactor)
 - Install locally (editable): `pip install -e .`
 - Set API key: `setx DEEPGRAM_API_KEY "<your_key>"`
-- Run: `rayado transcribe <input>`
-- Default provider is `deepgram` (Nova‑2). Use `--asr-provider mock` or `noop` for dry runs.
-- Language detection is enabled by default; you can restrict it with `--deepgram-detect-language-set es`.
-- Outputs: `out/<basename>/episode.gcl`, `transcript.txt`, `subtitles.srt`
+- Phase 1 (audio -> SRT only): `rayado phase1 <input>`
+  - Output: `out/<base>.srt`
+- Phase 2 (SRT -> graph -> cleaned SRT): `rayado phase2 <srt>`
+  - Output: `out/<base>.graph.txt`, `out/<base>.clean.srt`
+  - Optional external graph: `--graph-in <path>`
 
 ## E2E Test
 - Test file: `docs/testfiles/test.webm` (not tracked; add your own)
