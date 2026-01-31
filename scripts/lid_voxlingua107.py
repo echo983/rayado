@@ -35,6 +35,15 @@ else:
             return _orig_fetch(*args, **kwargs)
 
         sb_fetching.fetch = _fetch_copy  # type: ignore[assignment]
+    if hasattr(sb_fetching, "link_with_strategy"):
+        _orig_link = sb_fetching.link_with_strategy
+
+        def _link_with_strategy_copy(src, dst, local_strategy):  # type: ignore[no-untyped-def]
+            if local_strategy in {None, "symlink"}:
+                local_strategy = "copy"
+            return _orig_link(src, dst, local_strategy)
+
+        sb_fetching.link_with_strategy = _link_with_strategy_copy  # type: ignore[assignment]
 
 
 def _load_classifier(cache_dir: str, device: str):
