@@ -12,9 +12,15 @@ import torch
 
 def _load_classifier(cache_dir: str, device: str):
     try:
-        import torchaudio  # noqa: F401
+        import torchaudio
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"torchaudio import failed: {exc}") from exc
+
+    # Shim for newer Python builds where torchaudio may miss backend helpers.
+    if not hasattr(torchaudio, "list_audio_backends"):
+        torchaudio.list_audio_backends = lambda: ["soundfile"]  # type: ignore[attr-defined]
+    if not hasattr(torchaudio, "set_audio_backend"):
+        torchaudio.set_audio_backend = lambda _backend: None  # type: ignore[attr-defined]
 
     try:
         from speechbrain.inference.classifiers import EncoderClassifier
