@@ -6,6 +6,7 @@ import sys
 
 from .phase1 import run_phase1
 from .phase2 import run_phase2
+from .phase3 import run_phase3
 from .utils import ensure_dir
 
 
@@ -22,6 +23,12 @@ def _default_graph_path(srt_path: str) -> str:
 def _default_clean_srt_path(srt_path: str) -> str:
     base = os.path.splitext(os.path.basename(srt_path))[0]
     return os.path.join("out", f"{base}.clean.srt")
+
+
+def _default_merge_graph_path(graph_a: str, graph_b: str) -> str:
+    base_a = os.path.splitext(os.path.basename(graph_a))[0]
+    base_b = os.path.splitext(os.path.basename(graph_b))[0]
+    return os.path.join("out", f"{base_a}__{base_b}.merged.graph.txt")
 
 
 def main() -> None:
@@ -64,6 +71,14 @@ def main() -> None:
     p2.add_argument("--graph-out", default=None, help="Output object graph file")
     p2.add_argument("--model-graph", default="gpt-5.1", help="Model for object graph")
     p2.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
+
+    p3 = subparsers.add_parser("phase3", help="Merge two S-ORAL graphs")
+    p3.add_argument("--graph-a", required=True, help="Input graph A")
+    p3.add_argument("--graph-b", required=True, help="Input graph B")
+    p3.add_argument("--prompt", default=os.path.join("prompts", "SORAL_Merge.txt"), help="Merge prompt path")
+    p3.add_argument("--out", dest="graph_out", default=None, help="Output merged graph file")
+    p3.add_argument("--model", default="gpt-5.1", help="Model for merge")
+    p3.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
 
     args = parser.parse_args(argv)
 
@@ -118,6 +133,30 @@ def main() -> None:
             graph_in_path=args.graph_in,
             graph_out_path=graph_out,
             model_graph=args.model_graph,
+            retry=args.retry,
+        )
+        print(f"Output={graph_out}")
+
+    if args.command == "phase3":
+        graph_a = args.graph_a
+        graph_b = args.graph_b
+        if not os.path.exists(graph_a):
+            print(f"Graph A not found: {graph_a}", file=sys.stderr)
+            sys.exit(1)
+        if not os.path.exists(graph_b):
+            print(f"Graph B not found: {graph_b}", file=sys.stderr)
+            sys.exit(1)
+        if args.retry > 1:
+            print("Retry is capped at 1; using 1.", file=sys.stderr)
+            args.retry = 1
+        graph_out = args.graph_out or _default_merge_graph_path(graph_a, graph_b)
+        ensure_dir(os.path.dirname(graph_out))
+        run_phase3(
+            graph_a_path=graph_a,
+            graph_b_path=graph_b,
+            prompt_path=args.prompt,
+            graph_out_path=graph_out,
+            model=args.model,
             retry=args.retry,
         )
         print(f"Output={graph_out}")

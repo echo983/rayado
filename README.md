@@ -29,6 +29,8 @@ High‑throughput CLI transcription pipeline for episodic media. The system is o
 - Phase 2 (SRT -> object graph): `rayado phase2 <srt>`
   - Output: `out/<base>.graph.txt`
   - Optional external graph: `--graph-in <path>`
+- Phase 3 (graph merge): `rayado phase3 --graph-a <path> --graph-b <path>`
+  - Output: `out/<baseA>__<baseB>.merged.graph.txt`
 
 ## E2E Test
 - Test file: `docs/testfiles/test.webm` (not tracked; add your own)

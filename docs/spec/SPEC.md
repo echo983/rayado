@@ -29,6 +29,11 @@
 3) 载入对象图（支持外部文件，便于跨集复用）。
 4) 如果提供外部对象图：将其作为“已存在图”，本次输出为追加内容；合并后生成新的图文件。
 
+### Phase 3 — Graph Merge
+1) 加载 `prompts/SORAL_Merge.txt`。
+2) 输入两份 S-ORAL v3.1 对象图（A/B）。
+3) GPT‑5.1 输出合并重构后的单一对象图（`.merged.graph.txt`）。
+
 ## VAD 与切片规则
 - 基于 `silencedetect` 生成静音区间，反推出语音段。
 - 过滤过短语音段：小于 `vad_min_speech_sec` 直接丢弃。

@@ -29,6 +29,14 @@ rayado phase2 <srt>
 - `--model-graph <name>` GPT-5.1（对象图）
 - `--retry <n>` 默认 1（硬上限 1）
 
+## Phase 3 参数（合并对象图）
+- `--graph-a <path>` 对象图 A
+- `--graph-b <path>` 对象图 B
+- `--prompt <path>` 合并提示词路径（默认 `prompts/SORAL_Merge.txt`）
+- `--out <path>` 输出合并对象图（默认 `./out/<baseA>__<baseB>.merged.graph.txt`）
+- `--model <name>` GPT-5.1（合并模型）
+- `--retry <n>` 默认 1（硬上限 1）
+
 ## 输出
 - Phase 1：`out/<base>.srt`
 - Phase 2：`out/<base>.graph.txt`
