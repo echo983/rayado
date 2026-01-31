@@ -101,19 +101,27 @@ def main() -> None:
         sys.exit(2)
 
     votes: Dict[str, int] = {}
+    weights: Dict[str, float] = {}
     details = []
     for name in samples:
         path = os.path.join(chunk_dir, name)
         lang, conf = _detect_language(path)
         votes[lang] = votes.get(lang, 0) + 1
+        if conf >= 0.3:
+            weights[lang] = weights.get(lang, 0.0) + conf
         details.append({"file": name, "language": lang, "confidence": conf})
 
-    winner = sorted(votes.items(), key=lambda x: (-x[1], x[0]))[0][0] if votes else ""
+    winner_weight = ""
+    if weights:
+        winner_weight = sorted(weights.items(), key=lambda x: (-x[1], x[0]))[0][0]
+    winner_count = sorted(votes.items(), key=lambda x: (-x[1], x[0]))[0][0] if votes else ""
+    winner = winner_weight or winner_count
 
     output = {
         "sample_count": len(samples),
         "samples": details,
         "votes": votes,
+        "weights": weights,
         "winner": winner,
     }
     print(json.dumps(output, ensure_ascii=False, indent=2))
