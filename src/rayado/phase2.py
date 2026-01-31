@@ -161,6 +161,7 @@ def rebuild_srt(
         if not parsed:
             parsed = chunk
         rebuilt_blocks.extend(parsed)
+        _write_text(out_srt_path, format_srt_blocks(rebuilt_blocks))
 
     _write_text(out_srt_path, format_srt_blocks(rebuilt_blocks))
 
