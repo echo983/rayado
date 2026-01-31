@@ -8,6 +8,8 @@ import sys
 from typing import Dict, List, Tuple
 
 import torch
+import wave
+from array import array
 
 # Patch torchaudio backend helpers before SpeechBrain import.
 try:
@@ -27,6 +29,23 @@ except Exception:
     sb_fetching = None  # type: ignore[assignment]
 else:
     # Leave LocalStrategy enum intact; we'll pass COPY explicitly later.
+    pass
+
+    if hasattr(sb_fetching, "fetch"):
+        _orig_fetch = sb_fetching.fetch
+
+        def _fetch_guard(filename, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if not filename:
+                return ""
+            try:
+                return _orig_fetch(filename, *args, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc)
+                if filename == "custom.py" and ("404" in msg or "Not Found" in msg):
+                    raise ValueError("optional custom.py missing") from exc
+                raise
+
+        sb_fetching.fetch = _fetch_guard  # type: ignore[assignment]
 
 
 def _load_classifier(cache_dir: str, device: str):
@@ -57,12 +76,22 @@ def _load_classifier(cache_dir: str, device: str):
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"speechbrain import failed: {exc}") from exc
 
-    return EncoderClassifier.from_hparams(
-        source="speechbrain/lang-id-voxlingua107-ecapa",
-        savedir=cache_dir,
-        run_opts={"device": device},
-        local_strategy=sb_fetching.LocalStrategy.COPY,
-    )
+    import inspect
+
+    base_kwargs = {
+        "source": "speechbrain/lang-id-voxlingua107-ecapa",
+        "savedir": cache_dir,
+        "run_opts": {"device": device},
+    }
+    sig = inspect.signature(EncoderClassifier.from_hparams)
+    if "local_strategy" in sig.parameters:
+        base_kwargs["local_strategy"] = sb_fetching.LocalStrategy.COPY
+    if "hparams_file" in sig.parameters:
+        base_kwargs["hparams_file"] = "hyperparams.yaml"
+    if "pymodule_file" in sig.parameters:
+        base_kwargs["pymodule_file"] = "custom.py"
+
+    return EncoderClassifier.from_hparams(**base_kwargs)
 
 
 def _list_chunks(dir_path: str) -> List[str]:
@@ -116,6 +145,30 @@ def _label_to_code(label: str) -> str:
     return label.split()[0].strip()
 
 
+def _load_wav_tensor(path: str) -> torch.Tensor:
+    with wave.open(path, "rb") as wf:
+        n_channels = wf.getnchannels()
+        sampwidth = wf.getsampwidth()
+        n_frames = wf.getnframes()
+        frames = wf.readframes(n_frames)
+
+    if sampwidth == 2:
+        data = array("h")
+        data.frombytes(frames)
+        scale = 32768.0
+    elif sampwidth == 4:
+        data = array("i")
+        data.frombytes(frames)
+        scale = 2147483648.0
+    else:
+        raise RuntimeError(f"Unsupported sample width: {sampwidth}")
+
+    samples = torch.tensor(data, dtype=torch.float32) / scale
+    if n_channels > 1:
+        samples = samples.view(-1, n_channels).mean(dim=1)
+    return samples.unsqueeze(0)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Vote dominant language using VoxLingua107 (SpeechBrain)")
     parser.add_argument("chunk_dir", help="Directory of WAV chunks")
@@ -160,7 +213,7 @@ def main() -> None:
     for name in samples:
         path = os.path.join(chunk_dir, name)
         with torch.no_grad():
-            signal = classifier.load_audio(path)
+            signal = _load_wav_tensor(path)
             prediction = classifier.classify_batch(signal)
         score = float(prediction[1].exp().squeeze().item())
         label = prediction[3][0] if prediction[3] else ""
