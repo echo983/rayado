@@ -68,6 +68,8 @@ def main() -> None:
     p2.add_argument("--chunk-chars", type=int, default=12000, help="Approx chunk size in chars")
     p2.add_argument("--prompt-cache-retention", default="24h", help="Prompt cache retention")
     p2.add_argument("--retry", type=int, default=1, help="Retry count (max 1)")
+    p2.add_argument("--start-chunk", type=int, default=1, help="Start chunk index (1-based)")
+    p2.add_argument("--max-chunks", type=int, default=None, help="Max chunks to process")
 
     args = parser.parse_args(argv)
 
@@ -129,6 +131,8 @@ def main() -> None:
             chunk_chars=args.chunk_chars,
             prompt_cache_retention=args.prompt_cache_retention,
             retry=args.retry,
+            start_chunk=args.start_chunk,
+            max_chunks=args.max_chunks,
         )
         print(f"Output={out_clean}")
 

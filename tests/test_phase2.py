@@ -36,6 +36,8 @@ def test_phase2_generate_graph_and_clean(monkeypatch, tmp_path):
         chunk_chars=4000,
         prompt_cache_retention="24h",
         retry=1,
+        start_chunk=1,
+        max_chunks=None,
     )
 
     assert graph_out.exists()

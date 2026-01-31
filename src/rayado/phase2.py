@@ -50,6 +50,25 @@ def _call_openai(
     prompt_cache_retention: Optional[str] = None,
     retry: int = 1,
 ) -> str:
+    cache_models = {
+        "gpt-5.2",
+        "gpt-5.1",
+        "gpt-5",
+        "gpt-5-codex",
+        "gpt-5.1-codex",
+        "gpt-5.1-codex-mini",
+        "gpt-5.1-chat-latest",
+        "gpt-4.1",
+    }
+
+    def _supports_retention(name: str) -> bool:
+        if name in cache_models:
+            return True
+        for base in ("gpt-5.2", "gpt-5.1", "gpt-5", "gpt-4.1"):
+            if name.startswith(base + "-"):
+                suffix = name[len(base) + 1 :]
+                return suffix.replace(".", "").isdigit()
+        return False
     client = _openai_client()
     attempts = 0
     while True:
@@ -60,7 +79,7 @@ def _call_openai(
             }
             if prompt_cache_key:
                 payload["prompt_cache_key"] = prompt_cache_key
-            if prompt_cache_retention:
+            if prompt_cache_retention and _supports_retention(model):
                 payload["prompt_cache_retention"] = prompt_cache_retention
             resp = client.responses.create(**payload)
             return _response_text(resp)
@@ -102,6 +121,8 @@ def rebuild_srt(
     chunk_chars: int,
     prompt_cache_retention: str,
     retry: int,
+    start_chunk: int = 1,
+    max_chunks: Optional[int] = None,
 ) -> None:
     blocks = parse_srt_blocks(_read_text(srt_path))
     srt_chunks = chunk_srt_blocks(blocks, max_chars=chunk_chars)
@@ -117,7 +138,13 @@ def rebuild_srt(
     static_context = f"{base_prompt}\n[OBJECT_GRAPH]\n{graph_text}\n"
 
     rebuilt_blocks: List[SrtBlock] = []
+    total_chunks = len(srt_chunks)
+    end_chunk = start_chunk + max_chunks - 1 if max_chunks else total_chunks
     for idx, chunk in enumerate(srt_chunks, start=1):
+        if idx < start_chunk or idx > end_chunk:
+            rebuilt_blocks.extend(chunk)
+            continue
+        print(f"clean_chunk {idx}/{total_chunks}")
         chunk_text = format_srt_blocks(chunk)
         input_payload = [
             {"role": "developer", "content": static_context},
@@ -150,6 +177,8 @@ def run_phase2(
     chunk_chars: int,
     prompt_cache_retention: str,
     retry: int,
+    start_chunk: int,
+    max_chunks: Optional[int],
 ) -> str:
     if graph_in_path:
         graph_text = _read_text(graph_in_path)
@@ -170,5 +199,7 @@ def run_phase2(
         chunk_chars=chunk_chars,
         prompt_cache_retention=prompt_cache_retention,
         retry=retry,
+        start_chunk=start_chunk,
+        max_chunks=max_chunks,
     )
     return graph_text

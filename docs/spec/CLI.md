@@ -32,6 +32,8 @@ rayado phase2 <srt>
 - `--chunk-chars <n>` 约 4K tokens 的字符上限（默认 12000）
 - `--prompt-cache-retention <in_memory|24h>` 默认 `24h`
 - `--retry <n>` 默认 1（硬上限 1）
+- `--start-chunk <n>` 从第 n 段开始处理（默认 1）
+- `--max-chunks <n>` 仅处理 n 段（用于局部重跑）
 
 ## 输出
 - Phase 1：`out/<base>.srt`
