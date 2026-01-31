@@ -20,6 +20,22 @@ else:
     if not hasattr(torchaudio, "set_audio_backend"):
         torchaudio.set_audio_backend = lambda _backend: None  # type: ignore[attr-defined]
 
+# Patch SpeechBrain to avoid symlink strategy on Windows.
+try:
+    from speechbrain.utils import fetching as sb_fetching
+except Exception:
+    sb_fetching = None  # type: ignore[assignment]
+else:
+    if hasattr(sb_fetching, "fetch"):
+        _orig_fetch = sb_fetching.fetch
+
+        def _fetch_copy(*args, **kwargs):
+            if "local_strategy" not in kwargs or kwargs.get("local_strategy") in {None, "symlink"}:
+                kwargs["local_strategy"] = "copy"
+            return _orig_fetch(*args, **kwargs)
+
+        sb_fetching.fetch = _fetch_copy  # type: ignore[assignment]
+
 
 def _load_classifier(cache_dir: str, device: str):
     try:
