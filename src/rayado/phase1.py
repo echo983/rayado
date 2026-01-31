@@ -328,11 +328,21 @@ def run_phase1(
                     span_id += 1
 
     if output_txt_only:
-        lines: List[str] = []
+        chunk_texts: Dict[str, List[str]] = {}
         for span in sorted(spans, key=lambda s: (s.t0, s.t1, s.sid)):
             text = span.text_raw.strip()
-            if text:
-                lines.append(text)
+            if not text:
+                continue
+            chunk_texts.setdefault(span.chunk_id, []).append(text)
+        joiner = "" if detected_language in {"zh", "ja", "ko"} else " "
+        lines: List[str] = []
+        for chunk in chunks:
+            texts = chunk_texts.get(chunk.chunk_id)
+            if not texts:
+                continue
+            line = joiner.join(texts).strip()
+            if line:
+                lines.append(line)
         with open(out_srt_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + ("\n" if lines else ""))
     else:

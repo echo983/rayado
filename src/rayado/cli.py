@@ -15,6 +15,11 @@ def _default_srt_path(input_path: str) -> str:
     return os.path.join("out", f"{base}.srt")
 
 
+def _default_txt_path(input_path: str) -> str:
+    base = os.path.splitext(os.path.basename(input_path))[0]
+    return os.path.join("out", f"{base}.txt")
+
+
 def _default_graph_path(srt_path: str) -> str:
     base = os.path.splitext(os.path.basename(srt_path))[0]
     return os.path.join("out", f"{base}.graph.txt")
@@ -99,7 +104,10 @@ def main() -> None:
         if args.concurrency < 1:
             print("Concurrency must be >= 1", file=sys.stderr)
             sys.exit(1)
-        out_srt_path = args.out_srt or _default_srt_path(input_path)
+        if args.txt_only:
+            out_srt_path = args.out_srt or _default_txt_path(input_path)
+        else:
+            out_srt_path = args.out_srt or _default_srt_path(input_path)
         ensure_dir(os.path.dirname(out_srt_path))
 
         detected = run_phase1(
