@@ -12,6 +12,24 @@ import torch
 
 def _load_classifier(cache_dir: str, device: str):
     try:
+        import huggingface_hub
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(f"huggingface_hub import failed: {exc}") from exc
+
+    if not hasattr(huggingface_hub, "hf_hub_download"):
+        raise RuntimeError("huggingface_hub.hf_hub_download is missing")
+
+    if "use_auth_token" not in huggingface_hub.hf_hub_download.__code__.co_varnames:
+        original_hf_download = huggingface_hub.hf_hub_download
+
+        def _hf_hub_download_compat(*args, **kwargs):
+            if "use_auth_token" in kwargs and "token" not in kwargs:
+                kwargs["token"] = kwargs.pop("use_auth_token")
+            return original_hf_download(*args, **kwargs)
+
+        huggingface_hub.hf_hub_download = _hf_hub_download_compat  # type: ignore[assignment]
+
+    try:
         import torchaudio
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(f"torchaudio import failed: {exc}") from exc
